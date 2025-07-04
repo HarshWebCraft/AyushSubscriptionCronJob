@@ -106,7 +106,7 @@ cron.schedule("* * * * *", async () => {
   try {
     // Step 1: Fetch all users with ListOfBrokers and XAlgoID
     const users = await User.find({})
-      .select("Email ListOfBrokers XAlgoID")
+      .select("Email ListOfBrokers XalgoID")
       .lean(); // Use .lean() for better performance (returns plain JS objects)
 
     if (!users || users.length === 0) {
@@ -117,9 +117,10 @@ cron.schedule("* * * * *", async () => {
     // Step 2: Process each user
     for (const user of users) {
       console.log(`\n📦 Processing user: ${user.Email}`);
+      console.log(`\n📦 Processing X user: ${user.XalgoID}`);
 
       const subscriptions = await Subscription.find({
-        XalgoID: user.XAlgoID,
+        XalgoID: user.XalgoID,
       }).lean();
       console.log(`Subscriptions for ${user.Email}:`, subscriptions);
 
