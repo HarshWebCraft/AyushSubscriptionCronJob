@@ -122,7 +122,10 @@
 //       const subscriptions = await Subscription.find({
 //         XalgoID: user.XalgoID,
 //       }).lean();
-//       console.log(`Subscriptions for ${user.Email}:`, subscriptions);
+//       console.log(
+//         `Subscriptions for ${user.Email}:`,
+//         subscriptions ? "Not Found" : "Found"
+//       );
 
 //       let userNeedsUpdate = false;
 //       const brokers = [...(user.ListOfBrokers || [])];
@@ -240,7 +243,9 @@
 //         }
 //       } else {
 //         console.log(`ℹ️ No broker status change needed for ${user.Email}.`);
-//         console.log(`📤 Current broker result (with canActivate):`, result);
+//         console.log(
+//           `📤 Current broker result (with canActivate): ${result.ListOfBrokers.lenth} `
+//         );
 //       }
 //     }
 //   } catch (error) {
@@ -253,7 +258,6 @@
 // app.listen(PORT, () => {
 //   console.log(`Server running on port ${PORT}`);
 // });
-
 
 
 
