@@ -4,8 +4,8 @@ const mongoose = require("mongoose");
 const moment = require("moment-timezone");
 const User = require("./models/User");
 const APIModel = require("./models/Api");
+const Subscription = require("./models/Subscription.js"); // Adjust path if needed
 const bodyParser = require("body-parser");
-const Subscription = require("./models/Subscription.js"); // Adjust path
 
 const app = express();
 app.use(express.text());
@@ -13,13 +13,28 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 // MongoDB connection
-mongoose.connect(
-  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority",
-  {
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
+
+mongoose
+  .connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+// Health check endpoint for Kubernetes readiness probe
+app.get("/health", (req, res) => {
+  if (mongoose.connection.readyState === 1) {
+    res.status(200).json({ status: "healthy" });
+  } else {
+    res
+      .status(503)
+      .json({ status: "unhealthy", error: "MongoDB not connected" });
   }
-);
+});
 
 // SSE setup
 const sseClients = new Map();
@@ -161,7 +176,7 @@ cron.schedule("* * * * *", async () => {
           userNeedsUpdate = true;
 
           try {
-            const updateResult = await API.updateOne(
+            const updateResult = await APIModel.updateOne(
               { "Apis.ApiID": broker.clientId },
               { $set: { "Apis.$.IsActive": shouldBeActive } }
             );
@@ -230,4 +245,10 @@ cron.schedule("* * * * *", async () => {
   } catch (error) {
     console.error("Cron job error:", error);
   }
+});
+
+// Start the server
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
