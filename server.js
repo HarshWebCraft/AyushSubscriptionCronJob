@@ -89,129 +89,143 @@ cron.schedule("* * * * *", async () => {
   );
 
   try {
-    const email = "ayushsantoki1462004@gmail.com";
-    const user = await User.findOne({ Email: email }).select(
-      "ListOfBrokers XAlgoID"
-    );
-    const user2 = await User.findOne({ Email: email });
-    if (!user) {
-      console.log("❌ User not found");
+    // Step 1: Fetch all users with ListOfBrokers and XAlgoID
+    const users = await User.find({})
+      .select("Email ListOfBrokers XAlgoID")
+      .lean(); // Use .lean() for better performance (returns plain JS objects)
+
+    if (!users || users.length === 0) {
+      console.log("❌ No users found in the database");
       return;
     }
 
-    const subscriptions = await Subscription.find({ XalgoID: user2.XalgoID });
-    console.log("Subscriptions found:", subscriptions);
+    // Step 2: Process each user
+    for (const user of users) {
+      console.log(`\n📦 Processing user: ${user.Email}`);
 
-    let userNeedsUpdate = false;
-    const brokers = [...(user.ListOfBrokers || [])];
+      const subscriptions = await Subscription.find({
+        XalgoID: user.XAlgoID,
+      }).lean();
+      console.log(`Subscriptions for ${user.Email}:`, subscriptions);
 
-    // Step 1: Update isActive based on tradingTimes
-    for (let broker of brokers) {
-      let shouldBeActive = false;
-      const tz = broker.tradingTimes[0]?.timezone
-        ? getTimezoneFromLabel(broker.tradingTimes[0].timezone)
-        : "Asia/Kolkata";
-      const now = moment().tz(tz);
+      let userNeedsUpdate = false;
+      const brokers = [...(user.ListOfBrokers || [])];
 
-      for (const time of broker.tradingTimes || []) {
-        const start = moment.tz(tz).set({
-          year: now.year(),
-          month: now.month(),
-          date: now.date(),
-          hour: +time.startHour,
-          minute: +time.startMinute,
-          second: 0,
-        });
+      // Step 3: Update isActive based on tradingTimes
+      for (let broker of brokers) {
+        let shouldBeActive = false;
+        const tz = broker.tradingTimes[0]?.timezone
+          ? getTimezoneFromLabel(broker.tradingTimes[0].timezone)
+          : "Asia/Kolkata";
+        const now = moment().tz(tz);
 
-        const end = moment.tz(tz).set({
-          year: now.year(),
-          month: now.month(),
-          date: now.date(),
-          hour: +time.endHour,
-          minute: +time.endMinute,
-          second: 0,
-        });
+        for (const time of broker.tradingTimes || []) {
+          const start = moment.tz(tz).set({
+            year: now.year(),
+            month: now.month(),
+            date: now.date(),
+            hour: +time.startHour,
+            minute: +time.startMinute,
+            second: 0,
+          });
 
-        const remainingSeconds = end.diff(now, "seconds");
+          const end = moment.tz(tz).set({
+            year: now.year(),
+            month: now.month(),
+            date: now.date(),
+            hour: +time.endHour,
+            minute: +time.endMinute,
+            second: 0,
+          });
 
-        if (now.isSameOrAfter(start) && remainingSeconds > 0) {
-          shouldBeActive = true;
+          const remainingSeconds = end.diff(now, "seconds");
+
+          if (now.isSameOrAfter(start) && remainingSeconds > 0) {
+            shouldBeActive = true;
+            console.log(
+              `✅ ${broker.clientId} is ACTIVE. Ends in ${remainingSeconds}s`
+            );
+          } else if (now.isBefore(start)) {
+            const untilStart = start.diff(now, "seconds");
+            console.log(`🕒 ${broker.clientId} will start in ${untilStart}s`);
+          } else {
+            console.log(`❌ ${broker.clientId} is currently inactive.`);
+          }
+        }
+
+        if (broker.isActive !== shouldBeActive) {
           console.log(
-            `✅ ${broker.clientId} is ACTIVE. Ends in ${remainingSeconds}s`
+            `➡️ Updating ${broker.clientId} isActive from ${broker.isActive} → ${shouldBeActive}`
           );
-        } else if (now.isBefore(start)) {
-          const untilStart = start.diff(now, "seconds");
-          console.log(`🕒 ${broker.clientId} will start in ${untilStart}s`);
-        } else {
-          console.log(`❌ ${broker.clientId} is currently inactive.`);
+          broker.isActive = shouldBeActive;
+          userNeedsUpdate = true;
+
+          try {
+            const updateResult = await API.updateOne(
+              { "Apis.ApiID": broker.clientId },
+              { $set: { "Apis.$.IsActive": shouldBeActive } }
+            );
+            console.log(
+              `APIModel update result for ${broker.clientId} (isActive):`,
+              updateResult
+            );
+          } catch (err) {
+            console.error(
+              `Failed to update APIModel isActive for ${broker.clientId}:`,
+              err
+            );
+          }
         }
       }
 
-      if (broker.isActive !== shouldBeActive) {
-        console.log(
-          `➡️ Updating ${broker.clientId} isActive from ${broker.isActive} → ${shouldBeActive}`
-        );
-        broker.isActive = shouldBeActive;
-        userNeedsUpdate = true;
+      // Step 4: Update canActivate based on subscriptions
+      const grouped = {};
+      brokers.forEach((b) => {
+        const type = b.broker?.toLowerCase()?.replace(/\s+/g, "") || "unknown";
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(b);
+      });
 
-        try {
-          const updateResult = await API.updateOne(
-            { "Apis.ApiID": broker.clientId },
-            { $set: { "Apis.$.IsActive": shouldBeActive } }
-          );
+      const result = [];
+
+      for (const [type, list] of Object.entries(grouped)) {
+        const totalAPI = subscriptions
+          .filter((s) => s.Account?.toLowerCase()?.replace(/\s+/g, "") === type)
+          .reduce((sum, s) => sum + (s.NoOfAPI || 0), 0);
+
+        console.log(`🔍 Broker Type: ${type}, totalAPI: ${totalAPI}`);
+
+        list.forEach((broker, index) => {
+          const plain = broker.toObject?.() || broker;
+          const canActivate = index < totalAPI;
+          plain.canActivate = canActivate;
+          result.push(plain);
+
           console.log(
-            `APIModel update result for ${broker.clientId} (isActive):`,
-            updateResult
+            `➡️ Broker ${plain.clientId}: index ${index} < totalAPI ${totalAPI} → canActivate: ${canActivate}`
           );
+        });
+      }
+
+      // Step 5: Save updates to MongoDB if needed
+      if (userNeedsUpdate) {
+        try {
+          await User.updateOne(
+            { Email: user.Email },
+            { $set: { ListOfBrokers: brokers } }
+          );
+          console.log(`✅ User ${user.Email} broker status updated:`, result);
+          notifyBrokerStatusUpdate(user.Email, result);
         } catch (err) {
           console.error(
-            `Failed to update APIModel isActive for ${broker.clientId}:`,
+            `Failed to save broker updates for ${user.Email}:`,
             err
           );
         }
+      } else {
+        console.log(`ℹ️ No broker status change needed for ${user.Email}.`);
+        console.log(`📤 Current broker result (with canActivate):`, result);
       }
-    }
-
-    // Step 2: Update canActivate based on subscriptions
-    // Step 2: Update canActivate based on subscriptions
-    const grouped = {};
-    brokers.forEach((b) => {
-      const type = b.broker?.toLowerCase()?.replace(/\s+/g, "") || "unknown";
-      if (!grouped[type]) grouped[type] = [];
-      grouped[type].push(b);
-    });
-
-    const result = [];
-
-    for (const [type, list] of Object.entries(grouped)) {
-      const totalAPI = subscriptions
-        .filter((s) => s.Account?.toLowerCase()?.replace(/\s+/g, "") === type)
-        .reduce((sum, s) => sum + (s.NoOfAPI || 0), 0);
-
-      console.log(`🔍 Broker Type: ${type}, totalAPI: ${totalAPI}`);
-
-      list.forEach((broker, index) => {
-        const plain = broker.toObject?.() || broker;
-        const canActivate = index < totalAPI;
-        plain.canActivate = canActivate;
-        result.push(plain);
-
-        console.log(
-          `➡️ Broker ${plain.clientId}: index ${index} < totalAPI ${totalAPI} → canActivate: ${canActivate}`
-        );
-      });
-    }
-
-    // Step 3: Save updates to MongoDB if needed
-    if (userNeedsUpdate) {
-      user.ListOfBrokers = brokers; // Still saving only isActive changes
-      user.markModified("ListOfBrokers");
-      const saveResult = await user.save();
-      console.log("✅ User broker status updated:", result); // 🔥 Use `result` not `saveResult.ListOfBrokers`
-      notifyBrokerStatusUpdate(email, result); // 🔥 Send full result with `canActivate`
-    } else {
-      console.log("ℹ️ No broker status change needed.");
-      console.log("📤 Current broker result (with canActivate):", result); // Add this for debug
     }
   } catch (error) {
     console.error("Cron job error:", error);
