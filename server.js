@@ -122,10 +122,7 @@
 //       const subscriptions = await Subscription.find({
 //         XalgoID: user.XalgoID,
 //       }).lean();
-//       console.log(
-//         `Subscriptions for ${user.Email}:`,
-//         subscriptions ? "Not Found" : "Found"
-//       );
+//       console.log(`Subscriptions for ${user.Email}:`, subscriptions);
 
 //       let userNeedsUpdate = false;
 //       const brokers = [...(user.ListOfBrokers || [])];
@@ -243,9 +240,7 @@
 //         }
 //       } else {
 //         console.log(`ℹ️ No broker status change needed for ${user.Email}.`);
-//         console.log(
-//           `📤 Current broker result (with canActivate): ${result.ListOfBrokers.lenth} `
-//         );
+//         console.log(`📤 Current broker result (with canActivate) is ready`);
 //       }
 //     }
 //   } catch (error) {
@@ -258,7 +253,6 @@
 // app.listen(PORT, () => {
 //   console.log(`Server running on port ${PORT}`);
 // });
-
 
 
 const express = require("express");
@@ -308,9 +302,10 @@ class TelegramService {
       const response = await axios.get(`${this.baseUrl}/getMe`, {
         timeout: 10000,
       });
-      return response.status === 200 && response.data.ok
-        ? response.data.result
-        : null;
+      if (response.status === 200 && response.data.ok) {
+        return response.data.result;
+      }
+      return null;
     } catch (error) {
       console.error("Error verifying bot token:", error.message);
       return null;
@@ -327,9 +322,7 @@ class TelegramService {
       const response = await axios.post(
         `${this.baseUrl}/sendMessage`,
         payload,
-        {
-          timeout: 10000,
-        }
+        { timeout: 10000 }
       );
       return response.status === 200;
     } catch (error) {
@@ -353,42 +346,21 @@ class TelegramService {
 
   formatTradingViewAlert(alertData) {
     try {
-      let data;
-      if (typeof alertData === "string") {
-        // Try parsing as JSON first
-        try {
-          data = JSON.parse(alertData);
-        } catch {
-          // Handle plain text (e.g., "Buy BTC at 50000")
-          const parts = alertData.trim().split(" ");
-          if (parts.length >= 4 && parts[2].toLowerCase() === "at") {
-            data = {
-              action: parts[0] || "Alert",
-              symbol: parts[1] || "Unknown",
-              price: parts[3] || "N/A",
-              time: new Date().toISOString(),
-            };
-          } else {
-            // Fallback for unparseable plain text
-            data = { text: alertData, time: new Date().toISOString() };
-          }
-        }
-      } else {
-        data = alertData;
-      }
+      // Handle both JSON string and object
+      // const data =
+      // typeof alertData === "string" ? JSON.parse(alertData) : alertData;
+      const data = alertData;
 
-      // Extract fields with fallbacks
+      // Extract common fields
       const symbol = data.ticker || data.symbol || "Unknown";
       const action = data["strategy.order.action"] || data.action || "Alert";
       const price = data.close || data.price || "N/A";
       const time = data.time || new Date().toISOString();
 
-      // Format message
-      const message = data.text
-        ? `TradingView Alert: ${data.text}\nTime: ${time}`
-        : `${action.toUpperCase()} ${symbol} at ${price}\nTime: ${time}`;
+      // Create formatted message
+      const message = data;
+      console.dir(data);
 
-      console.log("Formatted alert:", message);
       return message.trim();
     } catch (error) {
       console.error("Error formatting alert:", error.message);
@@ -436,7 +408,7 @@ const INDEX_HTML = `<!DOCTYPE html>
 <body>
     <nav class="navbar navbar-dark bg-dark">
         <div class="container">
-            <span class="navbar-brand"><i class="fas fa Robot me-2"></i>TradingView Bot</span>
+            <span class="navbar-brand"><i class="fas fa-robot me-2"></i>TradingView Bot</span>
         </div>
     </nav>
     <div class="container mt-4">
@@ -581,7 +553,7 @@ function renderFlashMessages(messages) {
 
 // Routes
 app.get("/", (req, res) => {
-  const flashMessages = renderDelegationMessages(getFlashMessages(req));
+  const flashMessages = renderFlashMessages(getFlashMessages(req));
   const html = INDEX_HTML.replace("{{FLASH_MESSAGES}}", flashMessages);
   res.send(html);
 });
@@ -611,7 +583,7 @@ app.post("/setup", async (req, res) => {
     // Generate user ID and secret
     const userId = users.size + 1;
     const secretKey = uuidv4();
-    const botUsername = botInfo.username || "UnknownBot";
+    const botUsername = botInfo.username || "unknown";
 
     // Generate authentication command
     const authCommand = generateAuthCommand(botUsername, userId);
@@ -633,17 +605,12 @@ app.post("/setup", async (req, res) => {
     const protocol = req.get("X-Forwarded-Proto") || req.protocol;
     const host = req.get("Host");
     const webhookUrl = `${protocol}://${host}/webhook/telegram/${userId}`;
-    const webhookSuccess = await telegramService.setWebhook(webhookUrl);
-
-    if (!webhookSuccess) {
-      flashMessage(req, "Failed to set Telegram webhook", "error");
-      return res.redirect("/");
-    }
+    await telegramService.setWebhook(webhookUrl);
 
     flashMessage(req, "Bot configured successfully!", "success");
     res.redirect(`/dashboard/${userId}`);
   } catch (error) {
-    console.error("Error in setup:", error.message);
+    console.error("Error in setup:", error);
     flashMessage(req, "An error occurred while setting up the bot", "error");
     res.redirect("/");
   }
@@ -654,8 +621,7 @@ app.get("/dashboard/:userId", (req, res) => {
   const userData = users.get(userId);
 
   if (!userData) {
-    flashMessage(req, "User not found", "error");
-    return res.redirect("/");
+    return res.status(404).send("User not found");
   }
 
   // Get recent alerts for this user
@@ -718,7 +684,7 @@ app.get("/dashboard/:userId", (req, res) => {
                     <i class="fas fa-${
                       alert.sentSuccessfully ? "check" : "times"
                     } me-1"></i>
-                    ${alert.createdAt.toLocaleString()} - ${alert.webhookData}
+                    ${alert.createdAt.toLocaleTimeString()}
                 </small>
             </div>
         `
@@ -746,11 +712,11 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
     const userData = users.get(userId);
 
     if (!userData || userData.secretKey !== secretKey) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(404).json({ error: "Not found" });
     }
 
     // Get webhook data
-    const webhookData = req.body || req.body.message || req.body.text || {};
+    const webhookData = req.body || {};
     console.log(`Received TradingView alert for user ${userId}:`, webhookData);
 
     // Check if chat is configured
@@ -794,14 +760,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
       return res.status(500).json({ error: "Failed to send alert" });
     }
   } catch (error) {
-    console.error("Error in tradingview webhook:", error.message);
-    alerts.push({
-      userId: parseInt(req.params.userId),
-      webhookData: JSON.stringify(req.body),
-      sentSuccessfully: false,
-      createdAt: new Date(),
-      errorMessage: error.message,
-    });
+    console.error("Error in tradingview webhook:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -812,7 +771,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     const userData = users.get(userId);
 
     if (!userData) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Not found" });
     }
 
     const update = req.body;
@@ -830,7 +789,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
         const chatType = chat.type || "private";
 
         console.log(
-          `Received auth command from chat ${chatId}, type: ${chatType}`
+          `Received custom auth command from chat ${chatId}, type: ${chatType}`
         );
 
         // Update user's chat_id
@@ -848,7 +807,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
 
     return res.json({ status: "ok" });
   } catch (error) {
-    console.error("Error in telegram webhook:", error.message);
+    console.error("Error in telegram webhook:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -858,8 +817,7 @@ app.get("/regenerate/:userId", (req, res) => {
   const userData = users.get(userId);
 
   if (!userData) {
-    flashMessage(req, "User not found", "error");
-    return res.redirect("/");
+    return res.status(404).send("User not found");
   }
 
   // Generate new secret
@@ -882,7 +840,7 @@ app.use((req, res) => {
 });
 
 app.use((error, req, res, next) => {
-  console.error("Server error:", error.message);
+  console.error("Server error:", error);
   res.status(500).send(`
         <div class="container mt-5 text-center">
             <h1>Internal Server Error</h1>
