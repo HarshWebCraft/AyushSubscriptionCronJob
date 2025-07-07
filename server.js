@@ -131,9 +131,6 @@ app.get("/trigger-cron", async (req, res) => {
   }
 });
 
-// Start cron job
-startCron(notifyBrokerStatusUpdate);
-
 // Root endpoint
 app.post("/", (req, res) => {
   console.log("Received POST request to root");
@@ -142,4 +139,8 @@ app.post("/", (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  // Start cron job
+  startCron(notifyBrokerStatusUpdate);
+  console.log(`Server running on port ${PORT}`);
+});
