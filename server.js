@@ -76,7 +76,9 @@ app.get("/broker-status-stream/:email", (req, res) => {
     }`
   );
 
-  res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
+  const initialMessage = { message: "Connected to SSE" };
+  console.log(`📤 Sending initial SSE message for ${email}:`, initialMessage);
+  res.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
 
   req.on("close", () => {
     const clientList = sseClients.get(email) || [];
@@ -228,7 +230,9 @@ cron.schedule("*/60 * * * * *", async () => {
           userNeedsUpdate = true;
 
           try {
-            const apiDoc = await APIModel.findOne({ "Apis.ApiID": broker.clientId });
+            const apiDoc = await APIModel.findOne({
+              "Apis.ApiID": broker.clientId,
+            });
             console.log(`APIModel document for ${broker.clientId}:`, apiDoc);
 
             const updateResult = await APIModel.updateOne(
