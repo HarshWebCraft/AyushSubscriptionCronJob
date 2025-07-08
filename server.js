@@ -9,15 +9,15 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 
 const app = express();
+app.use(cors());
 
-// CORS Configuration
 const allowedOrigins = ["http://localhost:3000", "https://xalgos.in"];
+
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin || "*");
+      callback(null, true);
     } else {
-      console.error(`[CORS] Blocked origin: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -25,22 +25,24 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 204,
 };
+
 app.use(cors(corsOptions));
 app.use(express.text());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
-// MongoDB Connection
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
 
 mongoose
-  .connect(MONGODB_URI, {})
+  .connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// Health Check Endpoint
 app.get("/health", (req, res) => {
   if (mongoose.connection.readyState === 1) {
     res.status(200).json({ status: "healthy" });
@@ -51,116 +53,42 @@ app.get("/health", (req, res) => {
   }
 });
 
-// SSE Client Management
 const sseClients = new Map();
 
-// POST Root Endpoint
 app.post("/", (req, res) => {
   console.log("Received POST request to root");
-  res.status(200).json({ message: "POST request received" });
 });
 
-// SSE Endpoint
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
-  console.log(`[SSE] Endpoint hit for email: ${email}`);
-  console.log(`[SSE] Full URL: ${req.originalUrl}`);
-  console.log(`[SSE] Headers:`, req.headers);
-  console.log(`[SSE] Origin: ${req.headers.origin || "None"}`);
-
-  // Limit connections per email
-  const maxClients = 100;
-  if (!sseClients.has(email)) {
-    sseClients.set(email, []);
-  }
-  const clientList = sseClients.get(email);
-
-  // Clean up stale clients
-  const now = Date.now();
-  const activeClients = clientList.filter(
-    (client) =>
-      !client.res.writableEnded &&
-      client.res.writable &&
-      now - client.lastActive < 60000
-  );
-  sseClients.set(email, activeClients);
-  console.log(`[SSE] Active clients after cleanup for ${email}: ${activeClients.length}`);
-
-  if (activeClients.length >= maxClients) {
-    console.warn(
-      `[SSE] Too many clients for ${email}, rejecting new connection (${activeClients.length}/${maxClients})`
-    );
-    res.status(429).json({ error: "Too many connections" });
-    return;
-  }
-
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    console.warn(`[SSE] Origin ${origin || "None"} not allowed, using default`);
-    res.setHeader("Access-Control-Allow-Origin", "https://xalgos.in");
-  }
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
 
-  try {
-    res.flushHeaders();
-    console.log(`[SSE] Headers sent for ${email}`);
-  } catch (err) {
-    console.error(`[SSE] Error flushing headers for ${email}:`, err.message);
-    res.status(500).json({ error: "Failed to establish SSE connection" });
-    return;
+  if (!sseClients.has(email)) {
+    sseClients.set(email, []);
   }
-
-  // Add client with lastActive timestamp
-  const client = { res, lastActive: Date.now() };
-  sseClients.get(email).push(client);
+  sseClients.get(email).push(res);
   console.log(
-    `[SSE] Client added for ${email}. Total clients: ${sseClients.get(email).length}`
+    `SSE client connected for ${email}. Total clients: ${
+      sseClients.get(email).length
+    }`
   );
 
-  try {
-    res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
-    console.log(`[SSE] Sent initial message to ${email}`);
-  } catch (err) {
-    console.error(`[SSE] Error sending initial message to ${email}:`, err.message);
-    res.end();
-    return;
-  }
-
-  // Send periodic heartbeat
-  const heartbeatInterval = setInterval(() => {
-    if (!res.writableEnded && res.writable) {
-      try {
-        res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
-        client.lastActive = Date.now();
-        console.log(`[SSE] Heartbeat sent to ${email}`);
-      } catch (err) {
-        console.error(`[SSE] Error sending heartbeat to ${email}:`, err.message);
-        clearInterval(heartbeatInterval);
-        res.end();
-      }
-    } else {
-      console.log(`[SSE] Stopping heartbeat for ${email}: connection closed`);
-      clearInterval(heartbeatInterval);
-    }
-  }, 15000);
+  res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
 
   req.on("close", () => {
-    console.log(`[SSE] Client disconnecting for ${email}`);
-    clearInterval(heartbeatInterval);
     const clientList = sseClients.get(email) || [];
     sseClients.set(
       email,
-      clientList.filter((c) => c.res !== res)
+      clientList.filter((client) => client !== res)
     );
     if (sseClients.get(email).length === 0) {
       sseClients.delete(email);
     }
     console.log(
-      `[SSE] Client disconnected for ${email}. Remaining clients: ${
+      `SSE client disconnected for ${email}. Remaining clients: ${
         sseClients.get(email)?.length || 0
       }`
     );
@@ -168,56 +96,17 @@ app.get("/broker-status-stream/:email", (req, res) => {
   });
 });
 
-// Periodic cleanup of stale clients
-setInterval(() => {
-  console.log("[SSE] Cleaning up stale clients");
-  const now = Date.now();
-  for (const [email, clients] of sseClients) {
-    const activeClients = clients.filter(
-      (client) =>
-        !client.res.writableEnded &&
-        client.res.writable &&
-        now - client.lastActive < 60000
-    );
-    sseClients.set(email, activeClients);
-    console.log(`[SSE] Active clients for ${email}: ${activeClients.length}`);
-    if (activeClients.length === 0) {
-      sseClients.delete(email);
-    }
-  }
-}, 10000);
-
-// Notify clients of broker status updates
 const notifyBrokerStatusUpdate = (email, brokerData) => {
-  const clients = sseClients.get(email) || [];
+  const clientList = sseClients.get(email) || [];
   console.log(
-    `[SSE] Attempting to send notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
+    `📤 Sending SSE notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
     brokerData.brokers
   );
-  if (clients.length === 0) {
-    console.log(`[SSE] No active clients for ${email}`);
-  }
-  clients.forEach((client, index) => {
-    if (!client.res.writableEnded && client.res.writable) {
-      try {
-        client.res.write(`data: ${JSON.stringify(brokerData)}\n\n`);
-        client.lastActive = Date.now();
-        console.log(`[SSE] Notification sent to client ${index} for ${email}`);
-      } catch (err) {
-        console.error(
-          `[SSE] Error sending notification to client ${index} for ${email}:`,
-          err.message
-        );
-      }
-    } else {
-      console.log(
-        `[SSE] Skipping notification to client ${index} for ${email}: connection closed`
-      );
-    }
+  clientList.forEach((client) => {
+    client.write(`data: ${JSON.stringify(brokerData)}\n\n`);
   });
 };
 
-// Timezone helper
 const getTimezoneFromLabel = (label) => {
   if (!label) return "Asia/Kolkata";
   const match = label.match(/\((UTC[+-]\d{2}:\d{2})\)/);
@@ -233,8 +122,7 @@ const getTimezoneFromLabel = (label) => {
   return "Asia/Kolkata";
 };
 
-// Cron Job Logic (extracted for reuse)
-const runCronJob = async () => {
+cron.schedule("*/60 * * * * *", async () => {
   console.log(
     "\n⏰ Cron started at",
     moment().tz("Asia/Kolkata").format("HH:mm:ss")
@@ -346,12 +234,12 @@ const runCronJob = async () => {
             console.log(`APIModel document for ${broker.clientId}:`, apiDoc);
 
             const updateResult = await APIModel.updateOne(
-              { "Apis.ApiID": broker.clientId, XAlgoID: user.XAlgoID },
+              { "Apis.ApiID": broker.clientId, XAlgoID: user.XalgoID },
               { $set: { "Apis.$.IsActive": shouldBeActive } }
             );
             if (updateResult.matchedCount === 0) {
               console.error(
-                `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XAlgoID} found in APIModel`
+                `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XalgoID} found in APIModel`
               );
             } else if (updateResult.modifiedCount === 0) {
               console.error(
@@ -439,17 +327,14 @@ const runCronJob = async () => {
     }
   } catch (error) {
     console.error("❌ Cron job error:", error.message, error.stack);
-    throw error; // Throw to catch in /trigger-cron
   }
-};
-
-// Schedule Cron Job
-cron.schedule("*/60 * * * * *", runCronJob);
+});
 
 // Debug endpoint to manually trigger cron job
 app.get("/trigger-cron", async (req, res) => {
   try {
-    await runCronJob();
+    // Simulate cron job execution
+    await require("./server").cron();
     res.status(200).json({ message: "Cron triggered successfully" });
   } catch (err) {
     console.error("❌ Manual cron trigger error:", err.message, err.stack);
@@ -457,5 +342,4 @@ app.get("/trigger-cron", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(5001, () => console.log("Server running on port 5001"));
