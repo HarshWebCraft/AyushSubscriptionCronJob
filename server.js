@@ -10,14 +10,13 @@ const cors = require("cors");
 
 const app = express();
 
-const allowedOrigins = ["https://xalgos.in", "http://localhost:3000"];
-
+// CORS Configuration
+const allowedOrigins = ["http://localhost:3000", "https://xalgos.in"];
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+      callback(null, origin || "*");
     } else {
-      console.warn(`[CORS] Origin ${origin} not allowed`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -25,24 +24,22 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 204,
 };
-
 app.use(cors(corsOptions));
 app.use(express.text());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
+// MongoDB Connection
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
 
 mongoose
-  .connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(MONGODB_URI, {})
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
+// Health Check Endpoint
 app.get("/health", (req, res) => {
   if (mongoose.connection.readyState === 1) {
     res.status(200).json({ status: "healthy" });
@@ -53,14 +50,15 @@ app.get("/health", (req, res) => {
   }
 });
 
+// SSE Client Management
 const sseClients = new Map();
 
 app.post("/", (req, res) => {
   console.log("Received POST request to root");
-  res.status(200).json({ message: "OK" });
+  res.status(200).json({ message: "POST request received" });
 });
 
-// ... (other imports and code remain unchanged)
+// SSE Endpoint
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
   console.log(`[SSE] Endpoint hit for email: ${email}`);
@@ -69,17 +67,17 @@ app.get("/broker-status-stream/:email", (req, res) => {
   console.log(`[SSE] Origin: ${req.headers.origin}`);
 
   // Limit connections per email
-  const maxClients = 100; // Increased to 100 to support more clients
+  const maxClients = 100;
   const clientList = sseClients.get(email) || [];
 
   // Clean up stale clients
-  const activeClients = clientList.filter((client) => {
-    return (
+  const now = Date.now();
+  const activeClients = clientList.filter(
+    (client) =>
       !client.res.writableEnded &&
       client.res.writable &&
-      Date.now() - client.lastActive < 60000
-    ); // Remove clients inactive for >60s
-  });
+      now - client.lastActive < 60000
+  );
   sseClients.set(email, activeClients);
 
   if (activeClients.length >= maxClients) {
@@ -104,19 +102,17 @@ app.get("/broker-status-stream/:email", (req, res) => {
   res.flushHeaders();
   console.log(`[SSE] Headers sent for ${email}`);
 
-  // Add client with a lastActive timestamp
+  // Add client with lastActive timestamp
   const client = { res, lastActive: Date.now() };
   sseClients.get(email).push(client);
   console.log(
-    `[SSE] Client added for ${email}. Total clients: ${
-      sseClients.get(email).length
-    }`
+    `[SSE] Client added for ${email}. Total clients: ${sseClients.get(email).length}`
   );
 
   res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
   console.log(`[SSE] Sent initial message to ${email}`);
 
-  // Send periodic heartbeat to keep connection alive
+  // Send periodic heartbeat
   const heartbeatInterval = setInterval(() => {
     if (!res.writableEnded && res.writable) {
       res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
@@ -124,7 +120,7 @@ app.get("/broker-status-stream/:email", (req, res) => {
     } else {
       clearInterval(heartbeatInterval);
     }
-  }, 15000); // Send heartbeat every 15 seconds
+  }, 15000);
 
   req.on("close", () => {
     console.log(`[SSE] Client disconnecting for ${email}`);
@@ -151,45 +147,36 @@ setInterval(() => {
   console.log("[SSE] Cleaning up stale clients");
   const now = Date.now();
   for (const [email, clients] of sseClients) {
-    const activeClients = clients.filter((client) => {
-      return (
+    const activeClients = clients.filter(
+      (client) =>
         !client.res.writableEnded &&
         client.res.writable &&
         now - client.lastActive < 60000
-      );
-    });
+    );
     sseClients.set(email, activeClients);
     console.log(`[SSE] Active clients for ${email}: ${activeClients.length}`);
     if (activeClients.length === 0) {
       sseClients.delete(email);
     }
   }
-}, 10000); // Run every 10 seconds for faster cleanup
+}, 10000);
 
+// Notify clients of broker status updates
 const notifyBrokerStatusUpdate = (email, brokerData) => {
-  const clientList = sseClients.get(email) || [];
+  const clients = sseClients.get(email) || [];
   console.log(
     `[SSE] Sending notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
     brokerData.brokers
   );
-  clientList.forEach((client) => {
-    client.write(`data: ${JSON.stringify(brokerData)}\n\n`);
+  clients.forEach((client) => {
+    if (!client.res.writableEnded && client.res.writable) {
+      client.res.write(`data: ${JSON.stringify(brokerData)}\n\n`);
+      client.lastActive = Date.now();
+    }
   });
 };
 
-// Periodic cleanup of stale clients
-setInterval(() => {
-  console.log("[SSE] Cleaning up stale clients");
-  for (const [email, clients] of sseClients) {
-    const activeClients = clients.filter((client) => !client.writableEnded);
-    sseClients.set(email, activeClients);
-    console.log(`[SSE] Active clients for ${email}: ${activeClients.length}`);
-    if (activeClients.length === 0) {
-      sseClients.delete(email);
-    }
-  }
-}, 30 * 1000);
-
+// Timezone helper
 const getTimezoneFromLabel = (label) => {
   if (!label) return "Asia/Kolkata";
   const match = label.match(/\((UTC[+-]\d{2}:\d{2})\)/);
@@ -205,6 +192,7 @@ const getTimezoneFromLabel = (label) => {
   return "Asia/Kolkata";
 };
 
+// Cron Job
 cron.schedule("*/60 * * * * *", async () => {
   console.log(
     "\n⏰ Cron started at",
@@ -235,7 +223,7 @@ cron.schedule("*/60 * * * * *", async () => {
       const updatedBrokers = [];
 
       for (let broker of brokers) {
-        let shouldBeActive = broker.isActive;
+        let shouldBeActive = broker.isActive; // Default to current isActive
         const tz = broker.tradingTimes?.[0]?.timezone
           ? getTimezoneFromLabel(broker.tradingTimes[0].timezone)
           : "Asia/Kolkata";
@@ -246,6 +234,7 @@ cron.schedule("*/60 * * * * *", async () => {
           broker.tradingTimes
         );
 
+        // If no trading times exist, preserve current isActive
         if (!broker.tradingTimes || broker.tradingTimes.length === 0) {
           console.log(
             `ℹ No trading times found for ${broker.clientId}, preserving isActive=${broker.isActive}`
@@ -254,6 +243,7 @@ cron.schedule("*/60 * * * * *", async () => {
           continue;
         }
 
+        // Check trading time windows
         let isWithinTimeWindow = false;
         for (const time of broker.tradingTimes) {
           const start = moment.tz(tz).set({
@@ -296,6 +286,7 @@ cron.schedule("*/60 * * * * *", async () => {
           }
         }
 
+        // If not within any time window, set to false
         if (!isWithinTimeWindow) {
           shouldBeActive = false;
         }
@@ -411,15 +402,16 @@ cron.schedule("*/60 * * * * *", async () => {
 });
 
 // Debug endpoint to manually trigger cron job
-app.get("/test-sse/:email", (req, res) => {
-  const email = req.params.email;
-  console.log(`[SSE] Sending test message to ${email}`);
-  notifyBrokerStatusUpdate(email, {
-    brokers: [],
-    dbUpdated: true,
-    testMessage: "Test SSE message",
-  });
-  res.json({ message: "Test SSE message sent" });
+app.get("/trigger-cron", async (req, res) => {
+  try {
+    // Simulate cron job execution
+    await cron.getTasks().get("*/60 * * * * *").execute();
+    res.status(200).json({ message: "Cron triggered successfully" });
+  } catch (err) {
+    console.error("❌ Manual cron trigger error:", err.message, err.stack);
+    res.status(500).json({ error: "Failed to trigger cron" });
+  }
 });
 
-app.listen(8080, () => console.log("Server running on port 5000"));
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
