@@ -60,6 +60,7 @@ app.post("/", (req, res) => {
   res.status(200).json({ message: "OK" });
 });
 
+// ... (other imports and code remain unchanged)
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
   console.log(`[SSE] Endpoint hit for email: ${email}`);
@@ -68,10 +69,22 @@ app.get("/broker-status-stream/:email", (req, res) => {
   console.log(`[SSE] Origin: ${req.headers.origin}`);
 
   // Limit connections per email
-  const maxClients = 5;
-  if (sseClients.has(email) && sseClients.get(email).length >= maxClients) {
+  const maxClients = 100; // Increased to 100 to support more clients
+  const clientList = sseClients.get(email) || [];
+
+  // Clean up stale clients
+  const activeClients = clientList.filter((client) => {
+    return (
+      !client.res.writableEnded &&
+      client.res.writable &&
+      Date.now() - client.lastActive < 60000
+    ); // Remove clients inactive for >60s
+  });
+  sseClients.set(email, activeClients);
+
+  if (activeClients.length >= maxClients) {
     console.warn(
-      `[SSE] Too many clients for ${email}, rejecting new connection`
+      `[SSE] Too many clients for ${email}, rejecting new connection (${activeClients.length}/${maxClients})`
     );
     res.status(429).json({ error: "Too many connections" });
     return;
@@ -91,10 +104,9 @@ app.get("/broker-status-stream/:email", (req, res) => {
   res.flushHeaders();
   console.log(`[SSE] Headers sent for ${email}`);
 
-  if (!sseClients.has(email)) {
-    sseClients.set(email, []);
-  }
-  sseClients.get(email).push(res);
+  // Add client with a lastActive timestamp
+  const client = { res, lastActive: Date.now() };
+  sseClients.get(email).push(client);
   console.log(
     `[SSE] Client added for ${email}. Total clients: ${
       sseClients.get(email).length
@@ -104,12 +116,23 @@ app.get("/broker-status-stream/:email", (req, res) => {
   res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
   console.log(`[SSE] Sent initial message to ${email}`);
 
+  // Send periodic heartbeat to keep connection alive
+  const heartbeatInterval = setInterval(() => {
+    if (!res.writableEnded && res.writable) {
+      res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
+      client.lastActive = Date.now();
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 15000); // Send heartbeat every 15 seconds
+
   req.on("close", () => {
     console.log(`[SSE] Client disconnecting for ${email}`);
+    clearInterval(heartbeatInterval);
     const clientList = sseClients.get(email) || [];
     sseClients.set(
       email,
-      clientList.filter((client) => client !== res)
+      clientList.filter((c) => c.res !== res)
     );
     if (sseClients.get(email).length === 0) {
       sseClients.delete(email);
@@ -122,6 +145,26 @@ app.get("/broker-status-stream/:email", (req, res) => {
     res.end();
   });
 });
+
+// Periodic cleanup of stale clients
+setInterval(() => {
+  console.log("[SSE] Cleaning up stale clients");
+  const now = Date.now();
+  for (const [email, clients] of sseClients) {
+    const activeClients = clients.filter((client) => {
+      return (
+        !client.res.writableEnded &&
+        client.res.writable &&
+        now - client.lastActive < 60000
+      );
+    });
+    sseClients.set(email, activeClients);
+    console.log(`[SSE] Active clients for ${email}: ${activeClients.length}`);
+    if (activeClients.length === 0) {
+      sseClients.delete(email);
+    }
+  }
+}, 10000); // Run every 10 seconds for faster cleanup
 
 const notifyBrokerStatusUpdate = (email, brokerData) => {
   const clientList = sseClients.get(email) || [];
