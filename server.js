@@ -63,6 +63,7 @@ app.post("/", (req, res) => {
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
   console.log(`[SSE] Endpoint hit for email: ${email}`);
+  console.log(`[SSE] Full URL: ${req.originalUrl}`);
   console.log(`[SSE] Headers:`, req.headers);
   console.log(`[SSE] Origin: ${req.headers.origin}`);
 
