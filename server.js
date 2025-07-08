@@ -53,6 +53,7 @@ app.get("/health", (req, res) => {
 // SSE Client Management
 const sseClients = new Map();
 
+// POST Root Endpoint
 app.post("/", (req, res) => {
   console.log("Received POST request to root");
   res.status(200).json({ message: "POST request received" });
@@ -68,7 +69,10 @@ app.get("/broker-status-stream/:email", (req, res) => {
 
   // Limit connections per email
   const maxClients = 100;
-  const clientList = sseClients.get(email) || [];
+  if (!sseClients.has(email)) {
+    sseClients.set(email, []);
+  }
+  const clientList = sseClients.get(email);
 
   // Clean up stale clients
   const now = Date.now();
@@ -192,8 +196,8 @@ const getTimezoneFromLabel = (label) => {
   return "Asia/Kolkata";
 };
 
-// Cron Job
-cron.schedule("*/60 * * * * *", async () => {
+// Cron Job Logic (extracted for reuse)
+const runCronJob = async () => {
   console.log(
     "\n⏰ Cron started at",
     moment().tz("Asia/Kolkata").format("HH:mm:ss")
@@ -398,14 +402,17 @@ cron.schedule("*/60 * * * * *", async () => {
     }
   } catch (error) {
     console.error("❌ Cron job error:", error.message, error.stack);
+    throw error; // Throw to catch in /trigger-cron
   }
-});
+};
+
+// Schedule Cron Job
+cron.schedule("*/60 * * * * *", runCronJob);
 
 // Debug endpoint to manually trigger cron job
 app.get("/trigger-cron", async (req, res) => {
   try {
-    // Simulate cron job execution
-    await cron.getTasks().get("*/60 * * * * *").execute();
+    await runCronJob();
     res.status(200).json({ message: "Cron triggered successfully" });
   } catch (err) {
     console.error("❌ Manual cron trigger error:", err.message, err.stack);
