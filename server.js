@@ -11,7 +11,7 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
-const allowedOrigins = ["*"];
+const allowedOrigins = [];
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -61,13 +61,9 @@ app.post("/", (req, res) => {
 
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
-  res.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-    "Access-Control-Allow-Origin": "https://xalgos.in",
-    "Access-Control-Allow-Credentials": "true",
-  });
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
   if (!sseClients.has(email)) {
@@ -346,4 +342,4 @@ app.get("/trigger-cron", async (req, res) => {
   }
 });
 
-app.listen(8080, () => console.log("Server running on port 5001"));
+app.listen(5001, () => console.log("Server running on port 5001"));
