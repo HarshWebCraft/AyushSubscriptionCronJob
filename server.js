@@ -17,6 +17,7 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, origin || "*");
     } else {
+      console.error(`[CORS] Blocked origin: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -65,7 +66,7 @@ app.get("/broker-status-stream/:email", (req, res) => {
   console.log(`[SSE] Endpoint hit for email: ${email}`);
   console.log(`[SSE] Full URL: ${req.originalUrl}`);
   console.log(`[SSE] Headers:`, req.headers);
-  console.log(`[SSE] Origin: ${req.headers.origin}`);
+  console.log(`[SSE] Origin: ${req.headers.origin || "None"}`);
 
   // Limit connections per email
   const maxClients = 100;
@@ -83,6 +84,7 @@ app.get("/broker-status-stream/:email", (req, res) => {
       now - client.lastActive < 60000
   );
   sseClients.set(email, activeClients);
+  console.log(`[SSE] Active clients after cleanup for ${email}: ${activeClients.length}`);
 
   if (activeClients.length >= maxClients) {
     console.warn(
@@ -96,15 +98,21 @@ app.get("/broker-status-stream/:email", (req, res) => {
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
-    console.warn(`[SSE] Origin ${origin} not allowed, using default`);
+    console.warn(`[SSE] Origin ${origin || "None"} not allowed, using default`);
     res.setHeader("Access-Control-Allow-Origin", "https://xalgos.in");
   }
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  res.flushHeaders();
-  console.log(`[SSE] Headers sent for ${email}`);
+  try {
+    res.flushHeaders();
+    console.log(`[SSE] Headers sent for ${email}`);
+  } catch (err) {
+    console.error(`[SSE] Error flushing headers for ${email}:`, err.message);
+    res.status(500).json({ error: "Failed to establish SSE connection" });
+    return;
+  }
 
   // Add client with lastActive timestamp
   const client = { res, lastActive: Date.now() };
@@ -113,15 +121,29 @@ app.get("/broker-status-stream/:email", (req, res) => {
     `[SSE] Client added for ${email}. Total clients: ${sseClients.get(email).length}`
   );
 
-  res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
-  console.log(`[SSE] Sent initial message to ${email}`);
+  try {
+    res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
+    console.log(`[SSE] Sent initial message to ${email}`);
+  } catch (err) {
+    console.error(`[SSE] Error sending initial message to ${email}:`, err.message);
+    res.end();
+    return;
+  }
 
   // Send periodic heartbeat
   const heartbeatInterval = setInterval(() => {
     if (!res.writableEnded && res.writable) {
-      res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
-      client.lastActive = Date.now();
+      try {
+        res.write(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`);
+        client.lastActive = Date.now();
+        console.log(`[SSE] Heartbeat sent to ${email}`);
+      } catch (err) {
+        console.error(`[SSE] Error sending heartbeat to ${email}:`, err.message);
+        clearInterval(heartbeatInterval);
+        res.end();
+      }
     } else {
+      console.log(`[SSE] Stopping heartbeat for ${email}: connection closed`);
       clearInterval(heartbeatInterval);
     }
   }, 15000);
@@ -169,13 +191,28 @@ setInterval(() => {
 const notifyBrokerStatusUpdate = (email, brokerData) => {
   const clients = sseClients.get(email) || [];
   console.log(
-    `[SSE] Sending notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
+    `[SSE] Attempting to send notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
     brokerData.brokers
   );
-  clients.forEach((client) => {
+  if (clients.length === 0) {
+    console.log(`[SSE] No active clients for ${email}`);
+  }
+  clients.forEach((client, index) => {
     if (!client.res.writableEnded && client.res.writable) {
-      client.res.write(`data: ${JSON.stringify(brokerData)}\n\n`);
-      client.lastActive = Date.now();
+      try {
+        client.res.write(`data: ${JSON.stringify(brokerData)}\n\n`);
+        client.lastActive = Date.now();
+        console.log(`[SSE] Notification sent to client ${index} for ${email}`);
+      } catch (err) {
+        console.error(
+          `[SSE] Error sending notification to client ${index} for ${email}:`,
+          err.message
+        );
+      }
+    } else {
+      console.log(
+        `[SSE] Skipping notification to client ${index} for ${email}: connection closed`
+      );
     }
   });
 };
@@ -309,7 +346,7 @@ const runCronJob = async () => {
             console.log(`APIModel document for ${broker.clientId}:`, apiDoc);
 
             const updateResult = await APIModel.updateOne(
-              { "Apis.ApiID": broker.clientId, XAlgoID: user.XalgoID },
+              { "Apis.ApiID": broker.clientId, XAlgoID: user.XAlgoID },
               { $set: { "Apis.$.IsActive": shouldBeActive } }
             );
             if (updateResult.matchedCount === 0) {
