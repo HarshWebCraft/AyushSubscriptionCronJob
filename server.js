@@ -314,7 +314,7 @@ const runCronJob = async () => {
             );
             if (updateResult.matchedCount === 0) {
               console.error(
-                `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XalgoID} found in APIModel`
+                `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XAlgoID} found in APIModel`
               );
             } else if (updateResult.modifiedCount === 0) {
               console.error(
