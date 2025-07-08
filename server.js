@@ -61,9 +61,13 @@ app.post("/", (req, res) => {
 
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": "https://xalgos.in",
+    "Access-Control-Allow-Credentials": "true",
+  });
   res.flushHeaders();
 
   if (!sseClients.has(email)) {
