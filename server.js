@@ -1,4 +1,3 @@
-// Server-Side Code (index.js)
 const express = require("express");
 const cron = require("node-cron");
 const mongoose = require("mongoose");
@@ -11,7 +10,11 @@ const cors = require("cors");
 
 const app = express();
 
-const allowedOrigins = ["http://localhost:3000", "https://xalgos.in"];
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://your-netlify-app.netlify.app",
+  "https://xalgos.in",
+];
 
 app.use(
   cors({
@@ -19,6 +22,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.error(`CORS blocked for origin: ${origin}`);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -63,8 +67,9 @@ app.get("/broker-status-stream/:email", (req, res) => {
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
     "Access-Control-Allow-Origin":
-      req.headers.origin || "http://localhost:3000",
+      req.headers.origin || "https://your-netlify-app.netlify.app",
     "Access-Control-Allow-Credentials": "true",
+    "X-Accel-Buffering": "no",
   });
   res.flushHeaders();
 
@@ -73,15 +78,9 @@ app.get("/broker-status-stream/:email", (req, res) => {
   }
 
   const clientList = sseClients.get(email);
-  if (clientList.length >= 2) {
-    console.log(`⚠ Max connections reached for ${email}. Closing oldest.`);
-    const oldestClient = clientList.shift();
-    oldestClient.end();
-  }
-
   clientList.push(res);
   console.log(
-    `SSE client connected for ${email}. Total clients: ${clientList.length}`
+    `SSE client connected for ${email}. Total clients: ${clientList.length}, Origin: ${req.headers.origin}`
   );
 
   res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
@@ -98,10 +97,10 @@ app.get("/broker-status-stream/:email", (req, res) => {
       }
       res.end();
     }
-  }, 15000);
+  }, 10000);
 
   req.on("error", (err) => {
-    console.error(`❌ Request error for ${email}:`, err.message);
+    console.error(`❌ Request error for ${email}: ${err.message}`);
   });
 
   req.on("close", () => {
@@ -117,7 +116,7 @@ app.get("/broker-status-stream/:email", (req, res) => {
     console.log(
       `SSE client disconnected for ${email}. Remaining clients: ${
         sseClients.get(email)?.length || 0
-      }`
+      }, Origin: ${req.headers.origin}`
     );
     res.end();
   });
@@ -126,7 +125,7 @@ app.get("/broker-status-stream/:email", (req, res) => {
 const notifyBrokerStatusUpdate = (email, brokerData) => {
   const clientList = sseClients.get(email) || [];
   console.log(
-    `📤 Sending SSE notificationsecured for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
+    `📤 Sending SSE notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
     brokerData.brokers
   );
   clientList.forEach((client) => {
