@@ -1,3 +1,4 @@
+// Server-Side Code (index.js)
 const express = require("express");
 const cron = require("node-cron");
 const mongoose = require("mongoose");
@@ -9,24 +10,24 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
 
 const allowedOrigins = ["http://localhost:3000", "https://xalgos.in"];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  credentials: true,
-  optionsSuccessStatus: 204,
-};
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+    credentials: true,
+    optionsSuccessStatus: 204,
+  })
+);
 
-app.use(cors(corsOptions));
 app.use(express.text());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
@@ -55,17 +56,14 @@ app.get("/health", (req, res) => {
 
 const sseClients = new Map();
 
-app.post("/", (req, res) => {
-  console.log("Received POST request to root");
-});
-
 app.get("/broker-status-stream/:email", (req, res) => {
   const email = req.params.email;
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
-    "Access-Control-Allow-Origin": "https://xalgos.in",
+    "Access-Control-Allow-Origin":
+      req.headers.origin || "http://localhost:3000",
     "Access-Control-Allow-Credentials": "true",
   });
   res.flushHeaders();
@@ -73,16 +71,41 @@ app.get("/broker-status-stream/:email", (req, res) => {
   if (!sseClients.has(email)) {
     sseClients.set(email, []);
   }
-  sseClients.get(email).push(res);
+
+  const clientList = sseClients.get(email);
+  if (clientList.length >= 2) {
+    console.log(`⚠ Max connections reached for ${email}. Closing oldest.`);
+    const oldestClient = clientList.shift();
+    oldestClient.end();
+  }
+
+  clientList.push(res);
   console.log(
-    `SSE client connected for ${email}. Total clients: ${
-      sseClients.get(email).length
-    }`
+    `SSE client connected for ${email}. Total clients: ${clientList.length}`
   );
 
   res.write(`data: ${JSON.stringify({ message: "Connected to SSE" })}\n\n`);
 
+  const heartbeatInterval = setInterval(() => {
+    try {
+      res.write(`data: ${JSON.stringify({ message: "heartbeat" })}\n\n`);
+    } catch (err) {
+      console.error(`❌ Heartbeat error for ${email}:`, err.message);
+      clearInterval(heartbeatInterval);
+      clientList.splice(clientList.indexOf(res), 1);
+      if (clientList.length === 0) {
+        sseClients.delete(email);
+      }
+      res.end();
+    }
+  }, 15000);
+
+  req.on("error", (err) => {
+    console.error(`❌ Request error for ${email}:`, err.message);
+  });
+
   req.on("close", () => {
+    clearInterval(heartbeatInterval);
     const clientList = sseClients.get(email) || [];
     sseClients.set(
       email,
@@ -103,11 +126,15 @@ app.get("/broker-status-stream/:email", (req, res) => {
 const notifyBrokerStatusUpdate = (email, brokerData) => {
   const clientList = sseClients.get(email) || [];
   console.log(
-    `📤 Sending SSE notification for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
+    `📤 Sending SSE notificationsecured for ${email}: dbUpdated=${brokerData.dbUpdated}, brokers=`,
     brokerData.brokers
   );
   clientList.forEach((client) => {
-    client.write(`data: ${JSON.stringify(brokerData)}\n\n`);
+    try {
+      client.write(`data: ${JSON.stringify(brokerData)}\n\n`);
+    } catch (err) {
+      console.error(`❌ Error sending SSE to ${email}:`, err.message);
+    }
   });
 };
 
@@ -156,7 +183,7 @@ cron.schedule("*/60 * * * * *", async () => {
       const updatedBrokers = [];
 
       for (let broker of brokers) {
-        let shouldBeActive = broker.isActive; // Default to current isActive
+        let shouldBeActive = broker.isActive;
         const tz = broker.tradingTimes?.[0]?.timezone
           ? getTimezoneFromLabel(broker.tradingTimes[0].timezone)
           : "Asia/Kolkata";
@@ -167,7 +194,6 @@ cron.schedule("*/60 * * * * *", async () => {
           broker.tradingTimes
         );
 
-        // If no trading times exist, preserve current isActive
         if (!broker.tradingTimes || broker.tradingTimes.length === 0) {
           console.log(
             `ℹ No trading times found for ${broker.clientId}, preserving isActive=${broker.isActive}`
@@ -176,7 +202,6 @@ cron.schedule("*/60 * * * * *", async () => {
           continue;
         }
 
-        // Check trading time windows
         let isWithinTimeWindow = false;
         for (const time of broker.tradingTimes) {
           const start = moment.tz(tz).set({
@@ -219,7 +244,6 @@ cron.schedule("*/60 * * * * *", async () => {
           }
         }
 
-        // If not within any time window, set to false
         if (!isWithinTimeWindow) {
           shouldBeActive = false;
         }
@@ -334,10 +358,8 @@ cron.schedule("*/60 * * * * *", async () => {
   }
 });
 
-// Debug endpoint to manually trigger cron job
 app.get("/trigger-cron", async (req, res) => {
   try {
-    // Simulate cron job execution
     await require("./server").cron();
     res.status(200).json({ message: "Cron triggered successfully" });
   } catch (err) {
@@ -346,4 +368,4 @@ app.get("/trigger-cron", async (req, res) => {
   }
 });
 
-app.listen(8080, () => console.log("Server running on port 5001"));
+app.listen(8080, () => console.log("Server running on port 8080"));
