@@ -411,6 +411,24 @@ app.use(
   })
 );
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://xalgotelegram.netlify.app",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
 // Session middleware
 const sessions = new Map();
 function sessionMiddleware(req, res, next) {
