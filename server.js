@@ -368,7 +368,6 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
-
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -957,7 +956,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
         `✅ Authentication Successful!\nYour Bot is now ready!!!\n\nPowered by Xalgos.in`,
         "Markdown"
       );
-    } else if (text.startsWith("/auth")) {
+    } else if (text.startsWith("auth ") || text.startsWith("/auth")) {
       await telegramService.sendMessage(
         chat.id,
         `❌ Authentication Failed\nInvalid /auth command. Please enter the correct /auth command.\n\nPowered by Xalgos.in`,
