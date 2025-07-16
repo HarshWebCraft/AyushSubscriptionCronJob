@@ -599,7 +599,7 @@ app.post("/api/setup", async (req, res) => {
       });
     }
 
-    const userCount = await db.collection("users").countDocuments();
+    const userCount = await db.collection("tradingviewbots").countDocuments();
     const userId = userCount + 1;
 
     const secretKey = uuidv4();
@@ -629,11 +629,11 @@ app.post("/api/setup", async (req, res) => {
     };
 
     console.log("Inserting user:", JSON.stringify(userData, null, 2));
-    await db.collection("users").insertOne(userData);
+    await db.collection("tradingviewbots").insertOne(userData);
     await telegramService.setWebhook(webhookUrl);
 
     const userAlerts = await db
-      .collection("alerts")
+      .collection("tradingviewbotsAlert")
       .find({ userId })
       .sort({ createdAt: -1 })
       .limit(10)
@@ -659,7 +659,9 @@ app.post("/api/setup", async (req, res) => {
 app.get("/api/dashboard/:userId", async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
-    const userData = await db.collection("users").findOne({ id: userId });
+    const userData = await db
+      .collection("tradingviewbots")
+      .findOne({ id: userId });
 
     if (!userData) {
       flashMessage(req, "User not found", "error");
@@ -667,7 +669,7 @@ app.get("/api/dashboard/:userId", async (req, res) => {
     }
 
     const userAlerts = await db
-      .collection("alerts")
+      .collection("tradingviewbotsAlert")
       .find({ userId })
       .sort({ createdAt: -1 })
       .limit(10)
@@ -697,7 +699,9 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
     const secretKey = req.params.secretKey;
-    const userData = await db.collection("users").findOne({ id: userId });
+    const userData = await db
+      .collection("tradingviewbots")
+      .findOne({ id: userId });
 
     if (!userData || userData.secretKey !== secretKey) {
       console.log(
@@ -756,7 +760,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
     if (alertResults.length === 0) {
       const errorMsg =
         "No chats configured. Please complete authentication for at least one alert type.";
-      await db.collection("alerts").insertOne({
+      await db.collection("tradingviewbotsAlert").insertOne({
         userId,
         webhookData,
         contentType,
@@ -770,7 +774,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
     }
 
     // Store alert in the database
-    await db.collection("alerts").insertOne({
+    await db.collection("tradingviewbotsAlert").insertOne({
       userId,
       webhookData,
       contentType,
@@ -786,7 +790,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
       : res.status(500).json({ error: "Failed to send alert to some chats" });
   } catch (error) {
     console.error("Error in tradingview webhook:", error.message, error.stack);
-    await db.collection("alerts").insertOne({
+    await db.collection("tradingviewbotsAlert").insertOne({
       userId: parseInt(req.params.userId),
       webhookData: req.body || String(req.rawBody || ""),
       contentType: req.headers["content-type"] || "unknown",
@@ -806,7 +810,9 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
       JSON.stringify(req.body, null, 2)
     );
 
-    const userData = await db.collection("users").findOne({ id: userId });
+    const userData = await db
+      .collection("tradingviewbots")
+      .findOne({ id: userId });
     if (!userData) {
       console.log(`User not found: userId=${userId}`);
       return res.status(404).json({ error: "User not found" });
@@ -865,7 +871,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
 
         if (receivedCode === storedCode) {
           await db
-            .collection("users")
+            .collection("tradingviewbots")
             .updateOne(
               { id: userId, "alerts.alertType": alert.alertType },
               { $set: { "alerts.$.chatId": String(chat.id) } }
@@ -910,7 +916,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
               ["group", "supergroup"].includes(chatType)))
         ) {
           await db
-            .collection("users")
+            .collection("tradingviewbots")
             .updateOne(
               { id: userId, "alerts.alertType": alert.alertType },
               { $set: { "alerts.$.chatId": String(chat.id) } }
@@ -953,7 +959,9 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
 app.get("/api/regenerate/:userId", async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
-    const userData = await db.collection("users").findOne({ id: userId });
+    const userData = await db
+      .collection("tradingviewbots")
+      .findOne({ id: userId });
 
     if (!userData) {
       flashMessage(req, "User not found", "error");
@@ -962,7 +970,7 @@ app.get("/api/regenerate/:userId", async (req, res) => {
 
     const newSecretKey = uuidv4();
     await db
-      .collection("users")
+      .collection("tradingviewbots")
       .updateOne({ id: userId }, { $set: { secretKey: newSecretKey } });
 
     flashMessage(req, "Secret key regenerated successfully!", "success");
