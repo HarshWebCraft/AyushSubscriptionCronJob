@@ -368,7 +368,6 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
-
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -451,7 +450,7 @@ class TelegramService {
     try {
       const payload = {
         chat_id: chatId,
-        text: `${text}\n*__Powered by xalgos.in__*`,
+        text: `${text}\n\nPowered by xalgos.in`,
       };
       if (parseMode) payload.parse_mode = parseMode;
       const response = await axios.post(
@@ -829,6 +828,9 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
       return res.json({ status: "ok" });
     }
 
+    let authSuccess = false;
+    let authAlertType = null;
+
     for (const alert of userData.alerts) {
       if (
         alert.alertType === "channel" &&
@@ -855,18 +857,9 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           console.log(
             `Channel auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType}`
           );
-          await telegramService.sendMessage(
-            chat.id,
-            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`,
-            "Markdown"
-          );
-        } else {
-          console.log(`Channel auth failed: codes don't match`);
-          await telegramService.sendMessage(
-            chat.id,
-            `❌ Authentication failed. Please use the correct auth code from the dashboard.`,
-            "Markdown"
-          );
+          authSuccess = true;
+          authAlertType = alert.alertType;
+          break;
         }
       } else if (
         (text.startsWith(`/auth@${userData.botUsername}`) ||
@@ -878,23 +871,13 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           !text.includes(`@${userData.botUsername}`)
         ) {
           console.log(`Invalid auth command format: ${text}`);
-          await telegramService.sendMessage(
-            chat.id,
-            `Please use the full command: /auth@${userData.botUsername} <encodedData>`,
-            "Markdown"
-          );
-          return res.json({ status: "ok" });
+          continue;
         }
 
         const parts = text.trim().split(" ");
         if (parts.length < 2) {
           console.log(`Invalid auth command: missing encoded data`);
-          await telegramService.sendMessage(
-            chat.id,
-            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`,
-            "Markdown"
-          );
-          return res.json({ status: "ok" });
+          continue;
         }
 
         const encodedData = parts[1];
@@ -919,22 +902,29 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           console.log(
             `Auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType} (chatType: ${chatType})`
           );
-          await telegramService.sendMessage(
-            chat.id,
-            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`,
-            "Markdown"
-          );
+          authSuccess = true;
+          authAlertType = alert.alertType;
+          break;
         } else {
           console.log(
             `Auth failed for ${alert.alertType}: invalid HMAC or chatType mismatch (chatType: ${chatType})`
           );
-          await telegramService.sendMessage(
-            chat.id,
-            `❌ Authentication failed. Please ensure you are using the correct command in the appropriate chat type (${alert.alertType}).`,
-            "Markdown"
-          );
         }
       }
+    }
+
+    if (authSuccess) {
+      await telegramService.sendMessage(
+        chat.id,
+        `✅ Authentication successful!\nYour ${authAlertType} is now configured to receive TradingView alerts.`,
+        "Markdown"
+      );
+    } else {
+      await telegramService.sendMessage(
+        chat.id,
+        `❌ Authentication failed. Please ensure you are using the correct command.`,
+        "Markdown"
+      );
     }
 
     return res.json({ status: "ok" });
