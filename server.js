@@ -380,8 +380,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
-  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/tradingview_bot?retryWrites=true&w=majority";
-const DB_NAME = "tradingview_bot";
+  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
+const DB_NAME = "tradingviewbot";
 
 // Define allowed origins for CORS
 const allowedOrigins = [
