@@ -487,11 +487,11 @@ class TelegramService {
       console.log("formatTradingViewAlert input:", { alertData, contentType });
 
       if (alertData === null || alertData === undefined) {
-        return "📊 TradingView Alert: No data received\n\nPowered by xalgos.in";
+        return " No data received\n\nPowered by xalgos.in";
       }
 
       if (contentType.includes("text/plain") || typeof alertData === "string") {
-        return `📊 TradingView Alert\n\n${
+        return `\n\n${
           alertData.trim() || "Empty message"
         }\n\nPowered by xalgos.in`;
       }
@@ -502,21 +502,21 @@ class TelegramService {
       ) {
         try {
           const formatted = JSON.stringify(alertData, null, 2);
-          return `📊 TradingView Alert\n\n\`\`\`json\n${formatted}\n\`\`\`\n\nPowered by xalgos.in`;
+          return `\n\n\`\`\`json\n${formatted}\n\`\`\`\n\nPowered by xalgos.in`;
         } catch (error) {
           console.error("Error formatting JSON:", error.message);
-          return `📊 TradingView Alert: Malformed JSON data: ${JSON.stringify(
+          return ` Malformed JSON data: ${JSON.stringify(
             alertData
           )}\n\nPowered by xalgos.in`;
         }
       }
 
-      return `📊 TradingView Alert: Unsupported data format: ${String(
+      return ` Unsupported data format: ${String(
         alertData
       )}\n\nPowered by xalgos.in`;
     } catch (error) {
       console.error("Error processing alert:", error.message);
-      return `📊 TradingView Alert: Error processing data: ${String(
+      return ` Error processing data: ${String(
         alertData
       )}\n\nPowered by xalgos.in`;
     }
@@ -560,43 +560,40 @@ app.get("/api", (req, res) => {
 app.post("/api/setup", async (req, res) => {
   try {
     const { bot_token, image, XId } = req.body;
-    if (!bot_token || !bot_token.trim() || !XId || !XId.trim()) {
-      flashMessage(req, "Bot token and XId are required", "error");
+
+    if (!bot_token || !bot_token.trim()) {
+      flashMessage(req, "Bot token is required", "error");
       return res.status(400).json({
-        error: "Bot token and XId are required\n\nPowered by xalgos.in",
+        error: "Bot token is required\n\nPowered by xalgos.in",
+      });
+    }
+
+    const existingUser = await db
+      .collection("users")
+      .findOne({ botToken: bot_token.trim() });
+    if (existingUser) {
+      flashMessage(req, "This bot token is already registered", "error");
+      return res.status(400).json({
+        error: "This bot token is already registered\n\nPowered by xalgos.in",
       });
     }
 
     const telegramService = new TelegramService(bot_token.trim());
     const botInfo = await telegramService.verifyBotToken();
+
     if (!botInfo) {
       flashMessage(
         req,
         "Invalid bot token. Please check your token and try again.",
         "error"
       );
-      return res
-        .status(400)
-        .json({ error: "Invalid bot token\n\nPowered by xalgos.in" });
+      return res.status(400).json({
+        error: "Invalid bot token\n\nPowered by xalgos.in",
+      });
     }
 
-    let userId;
-    let existingUser;
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    do {
-      const userCount = await db.collection("users").countDocuments();
-      userId = userCount + 1;
-      existingUser = await db.collection("users").findOne({ XalgoID: XId });
-      attempts++;
-      if (attempts > maxAttempts) {
-        flashMessage(req, "Unable to assign a unique user ID.", "error");
-        return res.status(500).json({
-          error: "Unable to assign a unique user ID\n\nPowered by xalgos.in",
-        });
-      }
-    } while (existingUser && existingUser.XalgoID === XId);
+    const userCount = await db.collection("users").countDocuments();
+    const userId = userCount + 1;
 
     const secretKey = uuidv4();
     const botUsername = botInfo.username || "unknown";
@@ -618,7 +615,7 @@ app.post("/api/setup", async (req, res) => {
       secretKey,
       chatId: null,
       alerts,
-      XalgoID: XId,
+      XalgoID: XId || null,
       webhookURL: webhookUrl,
       createdAt: new Date(),
     };
@@ -637,7 +634,7 @@ app.post("/api/setup", async (req, res) => {
     const webhookTradingViewUrl = `${protocol}://${host}/webhook/tradingview/${userId}/${secretKey}`;
 
     flashMessage(req, "Bot configured successfully!", "success");
-    res.json({
+    return res.json({
       redirect: `/dashboard/${userId}`,
       flashMessages: getFlashMessages(req),
       userData,
@@ -647,9 +644,9 @@ app.post("/api/setup", async (req, res) => {
   } catch (error) {
     console.error("Error in setup:", error.message, error.stack);
     flashMessage(req, "An error occurred while setting up the bot", "error");
-    return res
-      .status(500)
-      .json({ error: "Internal server error\n\nPowered by xalgos.in" });
+    return res.status(500).json({
+      error: "Internal server error\n\nPowered by xalgos.in",
+    });
   }
 });
 
