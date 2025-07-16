@@ -368,6 +368,7 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
+
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -865,10 +866,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     }
 
     // Handle /start command
-    if (
-      text === "/start" &&
-      ["private", "group", "supergroup"].includes(chatType)
-    ) {
+    if (text === "/start") {
       await telegramService.sendMessage(
         chat.id,
         `🔒 Authentication Required\nTo continue, please complete authentication using the /auth command.\n\nPowered by Xalgos.in`,
