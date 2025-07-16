@@ -450,7 +450,7 @@ class TelegramService {
     try {
       const payload = {
         chat_id: chatId,
-        text: `${text}\n*__Powered by xalgos.in__*`,
+        text: `${text}\nPowered by xalgos.in`,
       };
       if (parseMode) payload.parse_mode = parseMode;
       const response = await axios.post(
