@@ -450,7 +450,7 @@ class TelegramService {
     try {
       const payload = {
         chat_id: chatId,
-        text: `${text}\nPowered by xalgos.in`,
+        text: `${text}\n*__Powered by xalgos.in__*`,
       };
       if (parseMode) payload.parse_mode = parseMode;
       const response = await axios.post(
@@ -461,7 +461,7 @@ class TelegramService {
       console.log(`Sent message to chat ${chatId}:`, text);
       return response.status === 200;
     } catch (error) {
-      console.error("Error sending message:", error.message);
+      console.error("Error sending message to chat ${chatId}:", error.message);
       return false;
     }
   }
@@ -592,6 +592,7 @@ app.post("/api/setup", async (req, res) => {
     const alerts = alertTypes.map((alertType) => ({
       alertType,
       authCommand: generateAuthCommand(botUsername, userId, alertType),
+      chatId: null,
     }));
 
     const protocol = req.get("X-Forwarded-Proto") || req.protocol;
@@ -605,7 +606,6 @@ app.post("/api/setup", async (req, res) => {
       botUsername,
       image: image || null,
       secretKey,
-      chatId: null,
       alerts,
       XalgoID: XId || null,
       webhookURL: webhookTradingViewUrl,
@@ -708,9 +708,38 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
       );
     }
 
-    if (!userData.chatId) {
+    const telegramService = new TelegramService(userData.botToken);
+    const formattedMessage = telegramService.formatTradingViewAlert(
+      webhookData,
+      contentType
+    );
+
+    let allSuccess = true;
+    const alertResults = [];
+
+    // Send message to all authenticated chatIds in alerts array
+    for (const alert of userData.alerts) {
+      if (alert.chatId) {
+        const success = await telegramService.sendMessage(
+          alert.chatId,
+          formattedMessage,
+          contentType.includes("json") ? "Markdown" : null
+        );
+        alertResults.push({
+          alertType: alert.alertType,
+          chatId: alert.chatId,
+          sentSuccessfully: success,
+          errorMessage: success
+            ? null
+            : `Failed to send message to ${alert.alertType}`,
+        });
+        if (!success) allSuccess = false;
+      }
+    }
+
+    if (alertResults.length === 0) {
       const errorMsg =
-        "Chat not configured. Please complete authentication first.";
+        "No chats configured. Please complete authentication for at least one alert type.";
       await db.collection("alerts").insertOne({
         userId,
         webhookData,
@@ -720,34 +749,25 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
         errorMessage: errorMsg,
       });
       return res.status(400).json({
-        error: "Chat not configured. Please complete authentication first.",
+        error: "No chats configured. Please complete authentication first.",
       });
     }
 
-    const telegramService = new TelegramService(userData.botToken);
-    const formattedMessage = telegramService.formatTradingViewAlert(
-      webhookData,
-      contentType
-    );
-    const success = await telegramService.sendMessage(
-      userData.chatId,
-      formattedMessage,
-      contentType.includes("json") ? "Markdown" : null
-    );
-
+    // Store alert in the database
     await db.collection("alerts").insertOne({
       userId,
       webhookData,
       contentType,
       formattedMessage,
-      sentSuccessfully: success,
+      sentSuccessfully: allSuccess,
       createdAt: new Date(),
-      errorMessage: success ? null : "Failed to send message",
+      errorMessage: allSuccess ? null : "Failed to send to some chats",
+      alertResults,
     });
 
-    return success
+    return allSuccess
       ? res.json({ status: "success" })
-      : res.status(500).json({ error: "Failed to send alert" });
+      : res.status(500).json({ error: "Failed to send alert to some chats" });
   } catch (error) {
     console.error("Error in tradingview webhook:", error.message, error.stack);
     await db.collection("alerts").insertOne({
@@ -824,9 +844,12 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
         if (receivedCode === storedCode) {
           await db
             .collection("users")
-            .updateOne({ id: userId }, { $set: { chatId: String(chat.id) } });
+            .updateOne(
+              { id: userId, "alerts.alertType": alert.alertType },
+              { $set: { "alerts.$.chatId": String(chat.id) } }
+            );
           console.log(
-            `Channel auth successful: chatId ${chat.id} linked to userId ${userId}`
+            `Channel auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType}`
           );
           await telegramService.sendMessage(
             chat.id,
@@ -880,9 +903,12 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
         if (encodedData === expectedEncodedData) {
           await db
             .collection("users")
-            .updateOne({ id: userId }, { $set: { chatId: String(chat.id) } });
+            .updateOne(
+              { id: userId, "alerts.alertType": alert.alertType },
+              { $set: { "alerts.$.chatId": String(chat.id) } }
+            );
           console.log(
-            `Auth successful: chatId ${chat.id} linked to userId ${userId}`
+            `Auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType}`
           );
           await telegramService.sendMessage(
             chat.id,
