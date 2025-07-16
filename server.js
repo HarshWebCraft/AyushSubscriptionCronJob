@@ -381,7 +381,7 @@ const PORT = process.env.PORT || 3000;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
-const DB_NAME = "tradingviewbot";
+const DB_NAME = "X-Algos";
 
 // Define allowed origins for CORS
 const allowedOrigins = [
@@ -576,7 +576,7 @@ app.post("/api/setup", async (req, res) => {
     }
 
     const existingUser = await db
-      .collection("users")
+      .collection("tradingviewbots")
       .findOne({ botToken: bot_token.trim() });
     if (existingUser) {
       flashMessage(req, "This bot token is already registered", "error");
