@@ -418,6 +418,8 @@ const allowedOrigins = [
   "https://xalgotelegram.netlify.app",
 ];
 
+app.use(cors()); // allows all origins
+
 app.use(
   cors({
     origin: function (origin, callback) {
