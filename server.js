@@ -368,6 +368,7 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
+
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -381,6 +382,27 @@ const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/tradingview_bot?retryWrites=true&w=majority";
 const DB_NAME = "tradingview_bot";
+
+// Define allowed origins for CORS
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "https://xalgotelegram.netlify.app",
+  "https://xalgos.in",
+].filter(Boolean); // Remove undefined/null values
+
+// CORS middleware
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (e.g., Postman) or if origin is in allowedOrigins
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
 // MongoDB Client
 let db;
@@ -404,34 +426,6 @@ connectToMongoDB();
 app.use(express.text({ type: ["text/plain", "text/*"] }));
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "https://xalgotelegram.netlify.app",
-    credentials: true,
-  })
-);
-
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://xalgotelegram.netlify.app",
-  "https://xalgos.in",
-  "https://xalgotelegram.netlify.app",
-];
-
-app.use(cors()); // allows all origins
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
 
 // Session middleware
 const sessions = new Map();
