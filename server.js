@@ -368,6 +368,7 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
+
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -461,7 +462,7 @@ class TelegramService {
       console.log(`Sent message to chat ${chatId}:`, text);
       return response.status === 200;
     } catch (error) {
-      console.error("Error sending message to chat ${chatId}:", error.message);
+      console.error(`Error sending message to chat ${chatId}:`, error.message);
       return false;
     }
   }
@@ -798,24 +799,26 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
 
     const telegramService = new TelegramService(userData.botToken);
     const update = req.body;
-    let message, chat, text;
+    let message, chat, text, chatType;
 
     if (update.message) {
       message = update.message;
       chat = message.chat || {};
       text = message.text || "";
+      chatType = chat.type || "unknown";
       console.log("Processing regular message:", {
         chatId: chat.id,
-        chatType: chat.type,
+        chatType,
         text,
       });
     } else if (update.channel_post) {
       message = update.channel_post;
       chat = message.chat || {};
       text = message.text || "";
+      chatType = "channel";
       console.log("Processing channel post:", {
         chatId: chat.id,
-        chatType: chat.type,
+        chatType,
         text,
       });
     } else {
@@ -829,6 +832,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     for (const alert of userData.alerts) {
       if (
         alert.alertType === "channel" &&
+        chatType === "channel" &&
         text.startsWith("auth ") &&
         text.length > 5
       ) {
@@ -900,7 +904,12 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
         hmac.update(`${userId}`);
         const expectedEncodedData = hmac.digest("base64");
 
-        if (encodedData === expectedEncodedData) {
+        if (
+          encodedData === expectedEncodedData &&
+          ((alert.alertType === "personal" && chatType === "private") ||
+            (alert.alertType === "group" &&
+              ["group", "supergroup"].includes(chatType)))
+        ) {
           await db
             .collection("users")
             .updateOne(
@@ -908,7 +917,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
               { $set: { "alerts.$.chatId": String(chat.id) } }
             );
           console.log(
-            `Auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType}`
+            `Auth successful: chatId ${chat.id} linked to userId ${userId} for ${alert.alertType} (chatType: ${chatType})`
           );
           await telegramService.sendMessage(
             chat.id,
@@ -916,10 +925,12 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
             "Markdown"
           );
         } else {
-          console.log(`Auth failed: invalid HMAC signature`);
+          console.log(
+            `Auth failed for ${alert.alertType}: invalid HMAC or chatType mismatch (chatType: ${chatType})`
+          );
           await telegramService.sendMessage(
             chat.id,
-            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`,
+            `❌ Authentication failed. Please ensure you are using the correct command in the appropriate chat type (${alert.alertType}).`,
             "Markdown"
           );
         }
