@@ -368,7 +368,6 @@
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
-
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
@@ -451,7 +450,7 @@ class TelegramService {
     try {
       const payload = {
         chat_id: chatId,
-        text: text,
+        text: `${text}\n*__Powered by xalgos.in__*`,
       };
       if (parseMode) payload.parse_mode = parseMode;
       const response = await axios.post(
@@ -831,13 +830,15 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           );
           await telegramService.sendMessage(
             chat.id,
-            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`
+            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`,
+            "Markdown"
           );
         } else {
           console.log(`Channel auth failed: codes don't match`);
           await telegramService.sendMessage(
             chat.id,
-            `❌ Authentication failed. Please use the correct auth code from the dashboard.`
+            `❌ Authentication failed. Please use the correct auth code from the dashboard.`,
+            "Markdown"
           );
         }
       } else if (
@@ -852,7 +853,8 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           console.log(`Invalid auth command format: ${text}`);
           await telegramService.sendMessage(
             chat.id,
-            `Please use the full command: /auth@${userData.botUsername} <encodedData>`
+            `Please use the full command: /auth@${userData.botUsername} <encodedData>`,
+            "Markdown"
           );
           return res.json({ status: "ok" });
         }
@@ -862,7 +864,8 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           console.log(`Invalid auth command: missing encoded data`);
           await telegramService.sendMessage(
             chat.id,
-            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`
+            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`,
+            "Markdown"
           );
           return res.json({ status: "ok" });
         }
@@ -883,13 +886,15 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
           );
           await telegramService.sendMessage(
             chat.id,
-            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`
+            `✅ Authentication successful!\nYour ${alert.alertType} is now configured to receive TradingView alerts.`,
+            "Markdown"
           );
         } else {
           console.log(`Auth failed: invalid HMAC signature`);
           await telegramService.sendMessage(
             chat.id,
-            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`
+            `❌ Authentication failed. Please ensure you are using the correct command from the dashboard.`,
+            "Markdown"
           );
         }
       }
