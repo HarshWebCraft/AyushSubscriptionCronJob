@@ -414,6 +414,8 @@ app.use(
 const allowedOrigins = [
   "http://localhost:3000",
   "https://xalgotelegram.netlify.app",
+  "https://xalgos.in",
+  "https://xalgotelegram.netlify.app",
 ];
 
 app.use(
