@@ -463,7 +463,7 @@ class TelegramService {
     try {
       const payload = {
         chat_id: chatId,
-        text: `${text}\n\nPowered by xalgos.in`,
+        text: text,
       };
       if (parseMode) payload.parse_mode = parseMode;
       const response = await axios.post(
@@ -499,11 +499,11 @@ class TelegramService {
       console.log("formatTradingViewAlert input:", { alertData, contentType });
 
       if (alertData === null || alertData === undefined) {
-        return "No data received";
+        return "No data received\n\nPowered by Xalgos.in";
       }
 
       if (contentType.includes("text/plain") || typeof alertData === "string") {
-        return `${alertData.trim() || "Empty message"}`;
+        return `${alertData.trim() || "Empty message"}\n\nPowered by Xalgos.in`;
       }
 
       if (
@@ -512,17 +512,23 @@ class TelegramService {
       ) {
         try {
           const formatted = JSON.stringify(alertData, null, 2);
-          return `\`\`\`json\n${formatted}\n\`\`\``;
+          return `\`\`\`json\n${formatted}\n\`\`\`\n\nPowered by Xalgos.in`;
         } catch (error) {
           console.error("Error formatting JSON:", error.message);
-          return `Malformed JSON data: ${JSON.stringify(alertData)}`;
+          return `Malformed JSON data: ${JSON.stringify(
+            alertData
+          )}\n\nPowered by Xalgos.in`;
         }
       }
 
-      return `Unsupported data format: ${String(alertData)}`;
+      return `Unsupported data format: ${String(
+        alertData
+      )}\n\nPowered by Xalgos.in`;
     } catch (error) {
       console.error("Error processing alert:", error.message);
-      return `Error processing data: ${String(alertData)}`;
+      return `Error processing data: ${String(
+        alertData
+      )}\n\nPowered by Xalgos.in`;
     }
   }
 }
@@ -545,7 +551,7 @@ function generateAuthCommand(botUsername, userId, alertType = "personal") {
 function flashMessage(req, message, type = "success") {
   if (!req.session.flash) req.session.flash = [];
   req.session.flash.push({
-    message: `${message}\n\nPowered by xalgos.in`,
+    message: `${message}\n\nPowered by Xalgos.in`,
     type,
   });
 }
@@ -568,7 +574,7 @@ app.post("/api/setup", async (req, res) => {
     if (!bot_token || !bot_token.trim()) {
       flashMessage(req, "Bot token is required", "error");
       return res.status(400).json({
-        error: "Bot token is required\n\nPowered by xalgos.in",
+        error: "Bot token is required\n\nPowered by Xalgos.in",
       });
     }
 
@@ -576,9 +582,9 @@ app.post("/api/setup", async (req, res) => {
       .collection("tradingviewbots")
       .findOne({ botToken: bot_token.trim() });
     if (existingUser) {
-      flashMessage(req, "This bot token is already added", "error");
+      flashMessage(req, "This bot token is already registered", "error");
       return res.status(400).json({
-        error: "This bot token is already registered\n\nPowered by xalgos.in",
+        error: "This bot token is already registered\n\nPowered by Xalgos.in",
       });
     }
 
@@ -592,7 +598,7 @@ app.post("/api/setup", async (req, res) => {
         "error"
       );
       return res.status(400).json({
-        error: "Invalid bot token\n\nPowered by xalgos.in",
+        error: "Invalid bot token\n\nPowered by Xalgos.in",
       });
     }
 
@@ -648,7 +654,7 @@ app.post("/api/setup", async (req, res) => {
     console.error("Error in setup:", error.message, error.stack);
     flashMessage(req, "An error occurred while setting up the bot", "error");
     return res.status(500).json({
-      error: "Internal server error\n\nPowered by xalgos.in",
+      error: "Internal server error\n\nPowered by Xalgos.in",
     });
   }
 });
@@ -663,7 +669,7 @@ app.get("/api/dashboard/:userId", async (req, res) => {
     if (!userData) {
       flashMessage(req, "User not found", "error");
       return res.status(404).json({
-        error: "User not found\n\nPowered by xalgos.in",
+        error: "User not found\n\nPowered by Xalgos.in",
       });
     }
 
@@ -691,7 +697,7 @@ app.get("/api/dashboard/:userId", async (req, res) => {
       "error"
     );
     res.status(500).json({
-      error: "Internal server error\n\nPowered by xalgos.in",
+      error: "Internal server error\n\nPowered by Xalgos.in",
     });
   }
 });
@@ -709,7 +715,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
         `Unauthorized access: userId=${userId}, secretKey=${secretKey}`
       );
       return res.status(401).json({
-        error: "Unauthorized\n\nPowered by xalgos.in",
+        error: "Unauthorized\n\nPowered by Xalgos.in",
       });
     }
 
@@ -772,7 +778,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
       });
       return res.status(400).json({
         error:
-          "No chats configured. Please complete authentication first.\n\nPowered by xalgos.in",
+          "No chats configured. Please complete authentication first.\n\nPowered by Xalgos.in",
       });
     }
 
@@ -790,7 +796,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
     return allSuccess
       ? res.json({ status: "success" })
       : res.status(500).json({
-          error: "Failed to send alert to some chats\n\nPowered by xalgos.in",
+          error: "Failed to send alert to some chats\n\nPowered by Xalgos.in",
         });
   } catch (error) {
     console.error("Error in tradingview webhook:", error.message, error.stack);
@@ -803,7 +809,7 @@ app.post("/webhook/tradingview/:userId/:secretKey", async (req, res) => {
       errorMessage: error.message,
     });
     return res.status(500).json({
-      error: "Internal server error\n\nPowered by xalgos.in",
+      error: "Internal server error\n\nPowered by Xalgos.in",
     });
   }
 });
@@ -822,7 +828,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     if (!userData) {
       console.log(`User not found: userId=${userId}`);
       return res.status(404).json({
-        error: "User not found\n\nPowered by xalgos.in",
+        error: "User not found\n\nPowered by Xalgos.in",
       });
     }
 
@@ -865,7 +871,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     ) {
       await telegramService.sendMessage(
         chat.id,
-        `Authentication required. Please use the /auth command from your dashboard to configure this ${chatType} chat.\n\nPowered by xalgos.in`,
+        `🔒 Authentication Required\nTo continue, please complete authentication using the /auth command.\n\nPowered by Xalgos.in`,
         "Markdown"
       );
       return res.json({ status: "ok" });
@@ -950,13 +956,13 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
     if (authSuccess) {
       await telegramService.sendMessage(
         chat.id,
-        `✅ Authentication successful!\nYour ${authAlertType} is now configured to receive TradingView alerts.\n\nPowered by xalgos.in`,
+        `✅ Authentication Successful!\nYour Bot is now ready!!!\n\nPowered by Xalgos.in`,
         "Markdown"
       );
     } else if (text.startsWith("/auth")) {
       await telegramService.sendMessage(
         chat.id,
-        `Authentication required. Please use the correct /auth command from your dashboard.\n\nPowered by xalgos.in`,
+        `❌ Authentication Failed\nInvalid /auth command. Please enter the correct /auth command.\n\nPowered by Xalgos.in`,
         "Markdown"
       );
     }
@@ -965,7 +971,7 @@ app.post("/webhook/telegram/:userId", async (req, res) => {
   } catch (error) {
     console.error("Error in telegram webhook:", error.message, error.stack);
     return res.status(500).json({
-      error: "Internal server error\n\nPowered by xalgos.in",
+      error: "Internal server error\n\nPowered by Xalgos.in",
     });
   }
 });
@@ -980,7 +986,7 @@ app.get("/api/regenerate/:userId", async (req, res) => {
     if (!userData) {
       flashMessage(req, "User not found", "error");
       return res.status(404).json({
-        error: "User not found\n\nPowered by xalgos.in",
+        error: "User not found\n\nPowered by Xalgos.in",
       });
     }
 
@@ -999,7 +1005,7 @@ app.get("/api/regenerate/:userId", async (req, res) => {
       "error"
     );
     res.status(500).json({
-      error: "Internal server error\n\nPowered by xalgos.in",
+      error: "Internal server error\n\nPowered by Xalgos.in",
     });
   }
 });
@@ -1007,14 +1013,14 @@ app.get("/api/regenerate/:userId", async (req, res) => {
 app.use((req, res) => {
   console.log(`404 Not Found: ${req.method} ${req.url}`);
   res.status(404).json({
-    error: "Not found\n\nPowered by xalgos.in",
+    error: "Not found\n\nPowered by Xalgos.in",
   });
 });
 
 app.use((error, req, res, next) => {
   console.error("Server error:", error.message, error.stack);
   res.status(500).json({
-    error: "Internal server error\n\nPowered by xalgos.in",
+    error: "Internal server error\n\nPowered by Xalgos.in",
   });
 });
 
