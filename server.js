@@ -602,8 +602,15 @@ app.post("/api/setup", async (req, res) => {
       });
     }
 
-    const userCount = await db.collection("tradingviewbots").countDocuments();
-    const userId = userCount + 1;
+    const lastUser = await db
+      .collection("tradingviewbots")
+      .find({})
+      .sort({ id: -1 })
+      .limit(1)
+      .toArray();
+
+    const lastId = lastUser.length > 0 ? lastUser[0].id : 0;
+    const userId = lastId + 1;
 
     const secretKey = uuidv4();
     const botUsername = botInfo.username || "unknown";
