@@ -363,24 +363,27 @@
 //     res.status(200).json({ message: "Cron triggered successfully" });
 //   } catch (err) {
 //     console.error("❌ Manual cron trigger error:", err.message, err.stack);
-//     res.status(500).json({ error: "Failed to trigger cron" });
+//     res.status(500).json({ error:
+//  "Failed to trigger cron" });
 //   }
 // });
 
 // app.listen(8080, () => console.log("Server running on port 8080"));
+
 const express = require("express");
 const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
+const mongoose = require("mongoose");
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
-const DB_NAME = "X-Algos";
 
 // Define allowed origins for CORS
 const allowedOrigins = [
@@ -406,23 +409,35 @@ app.use(
 let db;
 
 async function connectToMongoDB() {
-  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
   try {
-    await client.connect();
-    console.log("Connected to MongoDB");
-    db = client.db(DB_NAME);
+    await mongoose.connect(MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ Connected to MongoDB using Mongoose");
   } catch (error) {
-    console.error("Failed to connect to MongoDB:", error.message);
+    console.error("❌ Failed to connect to MongoDB:", error.message);
     process.exit(1);
   }
 }
-
 connectToMongoDB();
 
 // Middleware
 app.use(express.text({ type: ["text/plain", "text/*"] }));
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(express.urlencoded({ extended: true }));
+
+// CRON JOB FOR MOTILAL
+app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
+
+const cron = require("node-cron");
+const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
+
+// Run at 5:00 AM IST every day (IST = UTC+5:30, so 23:30 UTC)
+cron.schedule("30 23 * * *", async () => {
+  console.log("🔄 Running Motilal Login Cron at 5:00 AM IST");
+  await refreshMotilalAuthCodes();
+});
 
 // Session middleware
 const sessions = new Map();

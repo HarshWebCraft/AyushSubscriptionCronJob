@@ -80,6 +80,19 @@ const mt5BrokerSchema = new Schema({
   accountName: { type: String, required: true },
   addedOn: { type: Date, default: Date.now },
 });
+
+const motilalBrokerSchema = new Schema({
+  accountName: { type: String, required: true },
+  clientId: { type: String, required: true },
+  apiKey: { type: String, required: true },
+  password: { type: String, required: true },
+  totp: { type: String, required: true },
+  dob: { type: String, required: true },
+  authcode: { type: String, required: true },
+  authcodeUpdatedAt: { type: Date, required: true },
+  addedOn: { type: Date, default: Date.now, required: true },
+});
+
 const TradingTimeSchema = new Schema({
   timeRangeId: { type: String },
   startHour: { type: String, required: true },
@@ -91,7 +104,7 @@ const TradingTimeSchema = new Schema({
 
 const BrokerSchema = new Schema({
   apiName: { type: String, required: true },
-  clientId: { type: String, required: true },
+  clientId: { type: String },
   broker: { type: String, required: true },
   // terminal_id: { type: String, required: true },
   tradingTimes: [TradingTimeSchema],
@@ -120,6 +133,7 @@ const userSchema = new Schema({
   AngelBrokerData: [angelBrokerSchema],
   DeltaBrokerSchema: [deltaBrokerSchema],
   MT5BrokerData: [mt5BrokerSchema],
+  MotilalBrokerData: [motilalBrokerSchema],
   DeployedStrategiesBrokerIds: [String],
   DeployedData: [DeployedSchema],
   SubscribedStrategies: [{ type: Types.ObjectId, ref: "MarketPlace" }],
@@ -133,6 +147,7 @@ const userSchema = new Schema({
   AccountAliases: { type: Map, of: String },
   Favorite: [{ type: String }],
   ListOfBrokers: [BrokerSchema],
+  sendLogMail: { type: Boolean, default: true },
 });
 
 const User = mongoose.model("UserData", userSchema);
