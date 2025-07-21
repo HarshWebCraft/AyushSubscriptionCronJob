@@ -433,11 +433,12 @@ app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
 const cron = require("node-cron");
 const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
 
-// Run at 5:00 AM IST every day (IST = UTC+5:30, so 23:30 UTC)
-cron.schedule("30 23 * * *", async () => {
-  console.log("🔄 Running Motilal Login Cron at 5:00 AM IST");
+
+cron.schedule("30 2 * * *", async () => {
+  console.log("🔄 Running Motilal Login Cron at 8:00 AM IST");
   await refreshMotilalAuthCodes();
 });
+
 
 // Session middleware
 const sessions = new Map();
