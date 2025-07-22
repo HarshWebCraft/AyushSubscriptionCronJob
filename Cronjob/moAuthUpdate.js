@@ -98,6 +98,7 @@ const refreshMotilalAuthCodes = async (req, res) => {
     console.log(`✅ Updated tokens for: ${updatedBrokers.join(", ")}`);
   }
   res.json("Cron Job Complete");
+  console.log("✅ Cron Job Complete");
 };
 
 module.exports = refreshMotilalAuthCodes;
