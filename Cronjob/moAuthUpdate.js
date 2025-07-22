@@ -39,7 +39,7 @@ function getMacAddress() {
   return "00:00:00:00:00:00";
 }
 
-async function refreshMotilalAuthCodes() {
+const refreshMotilalAuthCodes = async (req, res) => {
   const users = await User.find({ "MotilalBrokerData.0": { $exists: true } });
 
   for (const user of users) {
@@ -97,6 +97,7 @@ async function refreshMotilalAuthCodes() {
     await user.save();
     console.log(`✅ Updated tokens for: ${updatedBrokers.join(", ")}`);
   }
-}
+  res.json("Cron Job Complete");
+};
 
 module.exports = refreshMotilalAuthCodes;

@@ -425,18 +425,21 @@ connectToMongoDB();
 app.use(express.text({ type: ["text/plain", "text/*"] }));
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // CRON JOB FOR MOTILAL
 app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
 
 const cron = require("node-cron");
 const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
+const bodyParser = require("body-parser");
 
 cron.schedule("0 4 * * *", async () => {
   console.log("🔄 Running Motilal Login Cron at 9:30 AM IST");
   await refreshMotilalAuthCodes();
 });
 
+app.post("/updateAuth", (req, res) => refreshMotilalAuthCodes(req, res));
 
 // Run it now
 // (async () => {
