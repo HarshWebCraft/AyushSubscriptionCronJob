@@ -378,7 +378,6 @@ const cors = require("cors");
 const { MongoClient } = require("mongodb");
 const mongoose = require("mongoose");
 
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI =
@@ -433,12 +432,17 @@ app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
 const cron = require("node-cron");
 const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
 
-
-cron.schedule("30 2 * * *", async () => {
-  console.log("🔄 Running Motilal Login Cron at 8:00 AM IST");
+cron.schedule("0 4 * * *", async () => {
+  console.log("🔄 Running Motilal Login Cron at 9:30 AM IST");
   await refreshMotilalAuthCodes();
 });
 
+
+// Run it now
+// (async () => {
+//   console.log("⚡ Manually triggering Motilal Login Cron now");
+//   await refreshMotilalAuthCodes();
+// })();
 
 // Session middleware
 const sessions = new Map();
