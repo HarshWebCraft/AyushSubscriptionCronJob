@@ -426,30 +426,7 @@ app.use(express.text({ type: ["text/plain", "text/*"] }));
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
 const { updateMotilalTokens } = require("./Cronjob/moAuthUpdate.js");
-
-app.use((req, res, next) => {
-  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-  console.log("Incoming IP:", ip);
-  next();
-});
-
-const allowedIps = ["123.123.123.123", "98.76.54.32"]; // Replace with actual cron platform IPs
-
-app.use((req, res, next) => {
-  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "")
-    .split(",")[0]
-    .trim();
-
-  if (!allowedIps.includes(ip)) {
-    console.log(`Blocked IP: ${ip}`);
-    return res.status(403).json({ error: "Access denied" });
-  }
-
-  next();
-});
-
 
 // CRON JOB FOR MOTILAL
 app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
