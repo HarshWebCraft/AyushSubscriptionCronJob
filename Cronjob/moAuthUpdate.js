@@ -4,6 +4,7 @@ const os = require("os");
 const crypto = require("crypto");
 const speakeasy = require("speakeasy");
 const User = require("../models/User");
+const MoCredentials = require("../models/moCredentials"); // Make sure the path is correct
 
 function generateHashedPassword(password, apiKey) {
   return crypto
@@ -86,6 +87,17 @@ const updateMotilalTokens = async () => {
           broker.authcode = data.AuthToken;
           broker.authcodeUpdatedAt = new Date();
           updatedBrokers.push(broker.clientId);
+
+          // Update or insert in moCredentials collection
+          await MoCredentials.findOneAndUpdate(
+            { client_id: broker.clientId },
+            {
+              client_id: broker.clientId,
+              apiKey: broker.apiKey,
+              auth_token: data.AuthToken,
+            },
+            { upsert: true, new: true }
+          );
         } else {
           console.error(`Failed for ${broker.clientId}: ${data.message}`);
         }

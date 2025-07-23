@@ -501,7 +501,6 @@ const { updateMotilalTokens } = require("./Cronjob/moAuthUpdate.js");
 
 // CRON JOB FOR MOTILAL
 app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
-app.use("/moCredentialsUpdate", require("./Cronjob/moCredentialsUpdate.js"));
 
 const cron = require("node-cron");
 const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
