@@ -407,13 +407,22 @@ app.use(
 // MongoDB Client
 let db;
 
+// Add this after MongoDB connection setup
+const client = new MongoClient(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// Modified connectToMongoDB function
 async function connectToMongoDB() {
   try {
+    await client.connect();
+    db = client.db("X-Algos"); // Explicitly specify database name
     await mongoose.connect(MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log("✅ Connected to MongoDB using Mongoose");
+    console.log("✅ Connected to MongoDB using Mongoose and MongoClient");
   } catch (error) {
     console.error("❌ Failed to connect to MongoDB:", error.message);
     process.exit(1);
