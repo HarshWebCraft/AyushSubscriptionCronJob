@@ -169,18 +169,24 @@
 //     }
 
 //     for (const user of users) {
-//       console.log(`\n📦 Processing user: ${user.Email}`);
-//       console.log(`📦 Processing X user: ${user.XalgoID}`);
+//       console.log(
+//         `\n📦 Processing user: ${user.Email}, XalgoID: ${user.XalgoID}`
+//       );
 
+//       // Fetch subscriptions for the user
 //       const subscriptions = await Subscription.find({
 //         XalgoID: user.XalgoID,
 //       }).lean();
-//       console.log(`Subscriptions for ${user.Email}:`, subscriptions);
+//       console.log(
+//         `Subscriptions for ${user.Email}:`,
+//         JSON.stringify(subscriptions, null, 2)
+//       );
 
 //       let userNeedsUpdate = false;
 //       const brokers = [...(user.ListOfBrokers || [])];
 //       const updatedBrokers = [];
 
+//       // Process isActive based on trading times
 //       for (let broker of brokers) {
 //         let shouldBeActive = broker.isActive;
 //         const tz = broker.tradingTimes?.[0]?.timezone
@@ -189,13 +195,13 @@
 //         const now = moment().tz(tz);
 
 //         console.log(
-//           `Checking trading times for ${broker.clientId}:`,
+//           `Checking trading times for ${broker.clientId} (Broker: ${broker.broker}):`,
 //           broker.tradingTimes
 //         );
 
 //         if (!broker.tradingTimes || broker.tradingTimes.length === 0) {
 //           console.log(
-//             `ℹ No trading times found for ${broker.clientId}, preserving isActive=${broker.isActive}`
+//             `ℹ No trading times for ${broker.clientId}, preserving isActive=${broker.isActive}`
 //           );
 //           updatedBrokers.push({ ...broker });
 //           continue;
@@ -207,16 +213,16 @@
 //             year: now.year(),
 //             month: now.month(),
 //             date: now.date(),
-//             hour: +time.startHour,
-//             minute: +time.startMinute,
+//             hour: parseInt(time.startHour, 10),
+//             minute: parseInt(time.startMinute, 10),
 //             second: 0,
 //           });
 //           const end = moment.tz(tz).set({
 //             year: now.year(),
 //             month: now.month(),
 //             date: now.date(),
-//             hour: +time.endHour,
-//             minute: +time.endMinute,
+//             hour: parseInt(time.endHour, 10),
+//             minute: parseInt(time.endMinute, 10),
 //             second: 0,
 //           });
 
@@ -255,18 +261,13 @@
 //           userNeedsUpdate = true;
 
 //           try {
-//             const apiDoc = await APIModel.findOne({
-//               "Apis.ApiID": broker.clientId,
-//             });
-//             console.log(`APIModel document for ${broker.clientId}:`, apiDoc);
-
 //             const updateResult = await APIModel.updateOne(
 //               { "Apis.ApiID": broker.clientId, XAlgoID: user.XalgoID },
 //               { $set: { "Apis.$.IsActive": shouldBeActive } }
 //             );
 //             if (updateResult.matchedCount === 0) {
 //               console.error(
-//                 `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XalgoID} found in APIModel`
+//                 `❌ No matching ApiID ${broker.clientId} or XAlgoID ${user.XalgoID} in APIModel`
 //               );
 //             } else if (updateResult.modifiedCount === 0) {
 //               console.error(
@@ -274,16 +275,13 @@
 //               );
 //             } else {
 //               console.log(
-//                 `✅ APIModel updated for ${broker.clientId} (isActive=${shouldBeActive}):`,
-//                 updateResult
+//                 `✅ APIModel updated for ${broker.clientId} (isActive=${shouldBeActive})`
 //               );
-//               userNeedsUpdate = true;
 //             }
 //           } catch (err) {
 //             console.error(
 //               `❌ Failed to update APIModel for ${broker.clientId}:`,
-//               err.message,
-//               err.stack
+//               err.message
 //             );
 //           }
 //         } else {
@@ -294,6 +292,7 @@
 //         updatedBrokers.push({ ...broker });
 //       }
 
+//       // Subscription validation and canActivate assignment
 //       const grouped = {};
 //       updatedBrokers.forEach((b) => {
 //         const type = b.broker?.toLowerCase()?.replace(/\s+/g, "") || "unknown";
@@ -302,33 +301,98 @@
 //       });
 
 //       const result = [];
+//       const now = moment();
 
 //       for (const [type, list] of Object.entries(grouped)) {
-//         const totalAPI = subscriptions
-//           .filter((s) => s.Account?.toLowerCase()?.replace(/\s+/g, "") === type)
-//           .reduce((sum, s) => sum + (s.NoOfAPI || 0), 0);
+//         // Filter valid subscriptions
+//         const validSubscriptions = subscriptions.filter((s) => {
+//           const accType = s.Account?.toLowerCase()?.replace(/\s+/g, "");
+//           if (!accType || accType !== type) {
+//             console.log(
+//               `❌ Subscription skipped for ${type}: Account=${
+//                 s.Account || "undefined"
+//               } does not match`
+//             );
+//             return false;
+//           }
 
-//         console.log(`🔍 Broker Type: ${type}, totalAPI: ${totalAPI}`);
+//           if (!s.CreatedAt || !moment(s.CreatedAt).isValid()) {
+//             console.log(
+//               `❌ Subscription skipped for ${type}: Invalid CreatedAt=${s.CreatedAt}`
+//             );
+//             return false;
+//           }
+
+//           const durationDays = parseInt(s.Duration, 10);
+//           if (isNaN(durationDays) || durationDays <= 0) {
+//             console.log(
+//               `❌ Subscription skipped for ${type}: Invalid Duration=${s.Duration}`
+//             );
+//             return false;
+//           }
+
+//           const createdAt = moment(s.CreatedAt);
+//           const expiresAt = createdAt.clone().add(durationDays, "days");
+//           const isValid = now.isBefore(expiresAt);
+
+//           if (!isValid) {
+//             console.log(
+//               `❌ Subscription skipped for ${type}: ID=${
+//                 s._id
+//               }, Expired at ${expiresAt.format(
+//                 "YYYY-MM-DD HH:mm:ss"
+//               )} (Now: ${now.format("YYYY-MM-DD HH:mm:ss")})`
+//             );
+//             return false;
+//           }
+
+//           console.log(
+//             `✅ Valid subscription for ${type}: ID=${s._id}, Account=${
+//               s.Account
+//             }, CreatedAt=${createdAt.format(
+//               "YYYY-MM-DD HH:mm:ss"
+//             )}, Duration=${durationDays}d, ExpiresAt=${expiresAt.format(
+//               "YYYY-MM-DD HH:mm:ss"
+//             )}, NoOfAPI=${s.NoOfAPI || "undefined"}`
+//           );
+
+//           return true;
+//         });
+
+//         const totalAPI = validSubscriptions.reduce((sum, s) => {
+//           const apiCount = parseInt(s.NoOfAPI, 10);
+//           if (isNaN(apiCount) || apiCount < 0) {
+//             console.log(
+//               `❌ Invalid NoOfAPI for subscription ${s._id}: ${s.NoOfAPI}`
+//             );
+//             return sum;
+//           }
+//           return sum + apiCount;
+//         }, 0);
+
+//         console.log(
+//           `🔍 Broker Type: ${type}, Total API slots: ${totalAPI}, Brokers: ${list.length}`
+//         );
 
 //         list.forEach((broker, index) => {
-//           const plain = broker.toObject?.() || broker;
 //           const canActivate = index < totalAPI;
-//           plain.canActivate = canActivate;
+//           const plain = { ...broker, canActivate };
 //           result.push(plain);
 
 //           console.log(
-//             ` ➡ Broker ${plain.clientId}: index ${index} < totalAPI ${totalAPI} → canActivate: ${canActivate}`
+//             ` ➡ Broker ${broker.clientId} (${type}): index=${index}, totalAPI=${totalAPI}, canActivate=${canActivate}`
 //           );
 //         });
 //       }
 
+//       // Update user if needed
 //       if (userNeedsUpdate) {
 //         try {
 //           await User.updateOne(
 //             { Email: user.Email },
 //             { $set: { ListOfBrokers: updatedBrokers } }
 //           );
-//           console.log(`✅ User ${user.Email} broker status updated`);
+//           console.log(`✅ User ${user.Email} broker status updated in DB`);
 //           notifyBrokerStatusUpdate(user.Email, {
 //             brokers: result,
 //             dbUpdated: true,
@@ -336,8 +400,7 @@
 //         } catch (err) {
 //           console.error(
 //             `❌ Failed to save broker updates for ${user.Email}:`,
-//             err.message,
-//             err.stack
+//             err.message
 //           );
 //           notifyBrokerStatusUpdate(user.Email, {
 //             brokers: result,
@@ -363,8 +426,7 @@
 //     res.status(200).json({ message: "Cron triggered successfully" });
 //   } catch (err) {
 //     console.error("❌ Manual cron trigger error:", err.message, err.stack);
-//     res.status(500).json({ error:
-//  "Failed to trigger cron" });
+//     res.status(500).json({ error: "Failed to trigger cron" });
 //   }
 // });
 
@@ -439,6 +501,7 @@ const { updateMotilalTokens } = require("./Cronjob/moAuthUpdate.js");
 
 // CRON JOB FOR MOTILAL
 app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
+app.use("/moCredentialsUpdate", require("./Cronjob/moCredentialsUpdate.js"));
 
 const cron = require("node-cron");
 const refreshMotilalAuthCodes = require("./Cronjob/moAuthUpdate.js");
