@@ -427,6 +427,8 @@ app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+const { updateMotilalTokens } = require("./Cronjob/moAuthUpdate.js");
+
 // CRON JOB FOR MOTILAL
 app.use("/moAuthUpdate", require("./Cronjob/moAuthUpdate.js"));
 
@@ -436,7 +438,7 @@ const bodyParser = require("body-parser");
 
 cron.schedule("0 4 * * *", async () => {
   console.log("🔄 Running Motilal Login Cron at 9:30 AM IST");
-  await refreshMotilalAuthCodes();
+  await updateMotilalTokens(); // ✅ Now doesn't expect req/res
 });
 
 app.post("/updateAuth", (req, res) => refreshMotilalAuthCodes(req, res));
