@@ -113,9 +113,4 @@ const updateMotilalTokens = async () => {
   console.log("✅ Cron Job Complete");
 };
 
-const refreshMotilalAuthCodes = async (req, res) => {
-  await updateMotilalTokens();
-  res.json("Cron Job Complete");
-};
-
-module.exports = refreshMotilalAuthCodes;
+module.exports = updateMotilalTokens;
