@@ -20,6 +20,7 @@ app.use(express.json());
 const allowedOrigins = [
   process.env.FRONTEND_URL || "https://xalgotelegram.netlify.app",
   "https://xalgos.in",
+  "https://xcronjob.onrender.com",
 ].filter(Boolean);
 
 app.use(
