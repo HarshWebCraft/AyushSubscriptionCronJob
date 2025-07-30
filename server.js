@@ -83,7 +83,7 @@ function sessionMiddleware(req, res, next) {
 }
 app.use(sessionMiddleware);
 
-app.use(require("./Routes/telegram.js"));
+app.use(require("./Telegram/telegram.js"));
 
 app.use((req, res) => {
   console.log(`404 Not Found: ${req.method} ${req.url}`);
