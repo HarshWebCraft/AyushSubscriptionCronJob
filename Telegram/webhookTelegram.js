@@ -1,4 +1,4 @@
-const TelegramService = require("../Services/telegramClass");
+const TelegramService = require("./telegram");
 const crypto = require("crypto");
 
 const webhookTelegram = async (req, res) => {

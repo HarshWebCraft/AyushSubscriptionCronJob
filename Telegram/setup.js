@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
-const TelegramService = require("../Services/telegramClass");
+const TelegramService = require("./telegram");
 
 const setup = async (req, res) => {
   function flashMessage(req, message, type = "success") {
