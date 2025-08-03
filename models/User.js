@@ -130,8 +130,6 @@ const RemovedAPIsSchema = new Schema({
   SecretKey: { type: String },
   AngelApiKey: { type: String }, // renamed to avoid duplicate with motilal
 
-  // Delta Broker fields
-  deltaSecretKey: { type: String },
 });
 
 const userSchema = new Schema({

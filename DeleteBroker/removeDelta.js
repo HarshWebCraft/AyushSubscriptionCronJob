@@ -16,7 +16,7 @@ const removeDelta = async (req, res) => {
 
     // Fetch delta credentials
     const deltaData = await delCredentials
-      .findOne({ clientId: clientId })
+      .findOne({ client_id: clientId })
       .session(session);
     if (!deltaData) {
       throw new Error("Delta broker credentials not found");
@@ -47,10 +47,10 @@ const removeDelta = async (req, res) => {
           $push: {
             RemovedAPIs: {
               apiName: APIName,
-              clientId: deltaData.deltaBrokerId,
+              clientId: deltaData.client_id,
               broker: "Delta",
-              deltaSecretKey: deltaData.deltaSecretKey,
-              deltaApiKey: deltaData.deltaApiKey,
+              SecretKey: deltaData.apiSecret,
+              apikey: deltaData.apiKey,
               removedAt: new Date(),
             },
           },

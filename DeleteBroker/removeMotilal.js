@@ -36,7 +36,7 @@ const removeMotilal = async (clientId, delBroker, APIName, XId, email) => {
         { $pull: { MotilalBrokerData: { clientId } } },
         { session }
       );
-
+      console.log(moData.apiKey);
       // Archive in RemovedBrokers
       const existingMotilalUser = await User.findOne({
         XalgoID: XId,
@@ -44,14 +44,6 @@ const removeMotilal = async (clientId, delBroker, APIName, XId, email) => {
           $elemMatch: {
             clientId: moData.clientId,
             apiName: APIName,
-            broker: "Motilal",
-            accountName: moData.accountName,
-            apiKey: moData.apiKey,
-            password: moData.password,
-            totp: moData.totp,
-            dob: moData.dob,
-            authcode: moData.authcode,
-            removedAt: new Date(),
           },
         },
       });
@@ -66,7 +58,7 @@ const removeMotilal = async (clientId, delBroker, APIName, XId, email) => {
                 clientId: moData.clientId,
                 broker: "Motilal",
                 accountName: moData.accountName,
-                apiKey: moData.apiKey,
+                apikey: moData.apiKey,
                 password: moData.password,
                 totp: moData.totp,
                 dob: moData.dob,
@@ -80,7 +72,7 @@ const removeMotilal = async (clientId, delBroker, APIName, XId, email) => {
       }
 
       // Attempt to delete from Mocredentials (optional, if it exists)
-      await Mocredentials.deleteOne({ clientId }, { session });
+      await Mocredentials.deleteOne({ client_id: clientId }, { session });
 
       // Run external cleanup
       await removeBroker(clientId, XId, email, delBroker, session);
