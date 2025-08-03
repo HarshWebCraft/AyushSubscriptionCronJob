@@ -111,6 +111,29 @@ const BrokerSchema = new Schema({
   isActive: { type: Boolean, default: false },
 });
 
+const RemovedAPIsSchema = new Schema({
+  apiName: { type: String },
+  clientId: { type: String },
+  broker: { type: String },
+
+  // MT5 Broker fields
+  password: { type: String },
+  server: { type: String },
+
+  // Motilal Broker fields
+  totp: { type: String },
+  dob: { type: String },
+  apikey: { type: String },
+
+  // Angel One Broker fields
+  AngelPass: { type: String },
+  SecretKey: { type: String },
+  AngelApiKey: { type: String }, // renamed to avoid duplicate with motilal
+
+  // Delta Broker fields
+  deltaSecretKey: { type: String },
+});
+
 const userSchema = new Schema({
   Name: String,
   Email: String,
@@ -148,6 +171,7 @@ const userSchema = new Schema({
   Favorite: [{ type: String }],
   ListOfBrokers: [BrokerSchema],
   sendLogMail: { type: Boolean, default: true },
+  RemovedAPIs: [RemovedAPIsSchema],
 });
 
 const User = mongoose.model("UserData", userSchema);

@@ -5,9 +5,10 @@ const { MongoClient } = require("mongodb");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 const updateAllCredentials = require("./Controller/authController.js");
+const ExpiredSubscriptions = require("./Cronjob/subcription");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
   "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
@@ -78,6 +79,16 @@ cron.schedule("0 8 * * *", async () => {
   }
 });
 
+cron.schedule("5 0 * * *", async () => {
+  console.log("⏰ Running daily subcription update...");
+  try {
+    await ExpiredSubscriptions();
+    console.log("✅ subcription removed");
+  } catch (err) {
+    console.error("❌ Error updating auth:", err);
+  }
+});
+
 const sessions = new Map();
 function sessionMiddleware(req, res, next) {
   const sessionId =
@@ -108,6 +119,7 @@ app.use((error, req, res, next) => {
     error: "Internal server error",
   });
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
