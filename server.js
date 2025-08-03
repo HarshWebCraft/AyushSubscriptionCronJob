@@ -85,7 +85,7 @@ cron.schedule("5 0 * * *", async () => {
     await ExpiredSubscriptions();
     console.log("✅ subcription removed");
   } catch (err) {
-    console.error("❌ Error updating auth:", err);
+    console.error("❌ Error updating subcription:", err);
   }
 });
 
