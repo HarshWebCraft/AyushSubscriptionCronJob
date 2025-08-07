@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Stylized HTML email template generator
-function generateEmailHTML(username, brokerName, daysLeft) {
+function generateEmailHTML(username, brokerName, daysLeft, expiryDate) {
   return `
     <body style="margin: 0; background-color: #f4f6f8; font-family: 'Open Sans', sans-serif;">
   <table width="100%" bgcolor="#f4f6f8" cellpadding="0" cellspacing="0">
@@ -36,7 +36,7 @@ function generateEmailHTML(username, brokerName, daysLeft) {
 
               <p style="margin: 0 0 15px;">
                 This is a reminder that your <strong>${brokerName}</strong> subscription is set to expire in 
-                <span style="color: #d9534f;"><strong>${daysLeft} day(s)</strong></span>.
+                <span style="color: #d9534f;"><strong>${daysLeft}(${expiryDate}) day(s)</strong></span>.
               </p>
 
               <p style="margin: 0 0 20px;">
@@ -81,7 +81,12 @@ const sendSubscriptionMail = async () => {
           from: `X-Algos <team@xalgos.in>`,
           to: user.Email,
           subject: `${daysLeft}-Day Subscription Expiry Notice`,
-          html: generateEmailHTML(user.Name, s.Account, daysLeft),
+          html: generateEmailHTML(
+            user.Name,
+            s.Account,
+            daysLeft,
+            expiryDate.format("DD-MM-YYYY")
+          ),
         };
         await transporter.sendMail(mailOptions);
         console.log(`Sent ${daysLeft}-day reminder to ${user.Email}`);

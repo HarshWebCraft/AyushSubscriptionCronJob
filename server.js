@@ -90,7 +90,7 @@ cron.schedule("5 0 * * *", async () => {
   }
 });
 
-cron.schedule("* * * * *", async () => {
+cron.schedule("5 0 * * *", async () => {
   console.log("⏰ Running daily subcription update...");
   try {
     await sendSubscriptionMail();
