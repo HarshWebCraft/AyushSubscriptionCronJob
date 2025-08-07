@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Stylized HTML email template generator
+// Stylized HTML email template generator for days 3 and 2
 function generateEmailHTML(username, brokerName, daysLeft, expiryDate) {
   return `
     <body style="margin: 0; background-color: #f4f6f8; font-family: 'Open Sans', sans-serif;">
@@ -35,12 +35,8 @@ function generateEmailHTML(username, brokerName, daysLeft, expiryDate) {
               <p style="margin: 0 0 15px;">Hello <strong>${username}</strong>,</p>
 
               <p style="margin: 0 0 15px;">
-                This is a reminder that your <strong>${brokerName}</strong> subscription is set to expire in 
-                <span style="color: #d9534f;"><strong>${daysLeft}(${expiryDate}) day(s)</strong></span>.
-              </p>
-
-              <p style="margin: 0 0 20px;">
-                To avoid any service disruption, we recommend renewing your subscription before it expires.
+                This is a reminder that your subscription of <strong>${brokerName}</strong> API will expire on 
+                <span style="color: #d9534f;"><strong>${expiryDate} (${daysLeft} day(s) left)</strong></span>.
               </p>
 
             </td>
@@ -49,8 +45,59 @@ function generateEmailHTML(username, brokerName, daysLeft, expiryDate) {
           <!-- Footer -->
           <tr>
             <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; font-size: 14px; color: #777;">
-              <p style="margin: 0;">Best regards,<br><strong>The X‑Algos Team</strong></p>
+              <p style="margin: 0;">Best regards,<br><strong>The X-Algos Team</strong></p>
               <p style="margin: 10px 0 0;">Need help? <a href="mailto:support@xalgos.in" style="color: #007BFF;">Contact Support</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+`;
+}
+
+// Stylized HTML email template for final day (1 day left)
+function generateFinalDayEmailHTML(username, brokerName, expiryDate) {
+  return `
+    <body style="margin: 0; background-color: #f4f6f8; font-family: 'Open Sans', sans-serif;">
+  <table width="100%" bgcolor="#f4f6f8" cellpadding="0" cellspacing="0">
+    <tr>
+      <td>
+        <table align="center" width="100%" style="max-width: 650px; margin: 40px auto; background: #ffffff; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 20px 30px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; color: #ffffff;">Final Subscription Expiry Alert</h1>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 30px; color: #333333; font-size: 16px; line-height: 1.6;">
+              <p style="margin: 0 0 15px;">Hello <strong>${username}</strong>,</p>
+
+              <p style="margin: 0 0 15px;">
+                This is your <strong>FINAL REMINDER</strong> that your subscription of <strong>${brokerName}</strong> API will expire 
+                <span style="color: #d9534f;"><strong>tomorrow, ${expiryDate}</strong></span>.
+              </p>
+
+              <p style="margin: 0 0 15px;">
+                Please note that upon expiry, all associated brokers and deployed accounts will be removed from our system. 
+                To continue using our services without interruption, please renew your subscription before the expiry date.
+              </p>
+
+              <p style="margin: 0 0 15px;">
+                <a href="https://xalgos.in/profile?section=Subscription" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; border-radius: 5px;">Renew Now</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; font-size: 14px; color: #777;">
+              <p style="margin: 0;">Best regards,<br><strong>The X-Algos Team</strong></p>
+              <p style="margin: 10px 0 0;">Need help? <a href="mailto:team@xalgos.in" style="color: #007BFF;">Contact Support</a></p>
             </td>
           </tr>
         </table>
@@ -77,21 +124,33 @@ const sendSubscriptionMail = async () => {
         const user = await User.findOne({ XalgoID: s.XalgoID });
         if (!user || !user.Email) continue;
 
+        const isFinalDay = daysLeft === 1;
         const mailOptions = {
           from: `X-Algos <team@xalgos.in>`,
           to: user.Email,
-          subject: `${daysLeft}-Day Subscription Expiry Notice`,
-          html: generateEmailHTML(
-            user.Name,
-            s.Account,
-            daysLeft,
-            expiryDate.format("DD-MM-YYYY")
-          ),
+          subject: isFinalDay
+            ? `Final Subscription Expiry Notice`
+            : `${daysLeft}-Day Subscription Expiry Notice`,
+          html: isFinalDay
+            ? generateFinalDayEmailHTML(
+                user.Name,
+                s.Account,
+                expiryDate.format("DD-MM-YYYY")
+              )
+            : generateEmailHTML(
+                user.Name,
+                s.Account,
+                daysLeft,
+                expiryDate.format("DD-MM-YYYY")
+              ),
         };
         await transporter.sendMail(mailOptions);
-        console.log(`Sent ${daysLeft}-day reminder to ${user.Email}`);
+        console.log(
+          `Sent ${isFinalDay ? "final" : daysLeft + "-day"} reminder to ${
+            user.Email
+          }`
+        );
       } else if (daysLeft < 0) {
-        await Subscription.deleteOne({ _id: s._id });
         console.log(`Deleted expired subscription for XalgoID ${s.XalgoID}`);
       }
     }

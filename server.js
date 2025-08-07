@@ -80,6 +80,7 @@ cron.schedule("0 8 * * *", async () => {
   }
 });
 
+// cron.schedule("5 0 * * *", async () => {
 cron.schedule("5 0 * * *", async () => {
   console.log("⏰ Running daily subcription update...");
   try {
@@ -91,7 +92,7 @@ cron.schedule("5 0 * * *", async () => {
 });
 
 cron.schedule("5 0 * * *", async () => {
-  console.log("⏰ Running daily subcription update...");
+  console.log("⏰ Running daily send main subcription update...");
   try {
     await sendSubscriptionMail();
     console.log("✅ subcription removed");

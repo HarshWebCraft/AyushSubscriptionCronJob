@@ -76,13 +76,36 @@ const ExpiredSubscriptions = async () => {
   for (const element of data) {
     const createdAt = new Date(element.CreatedAt);
     const duration = parseInt(element.Duration);
-
     const expiryDate = new Date(createdAt);
     expiryDate.setDate(expiryDate.getDate() + duration);
 
     const isExpired = today > expiryDate;
 
     if (isExpired) {
+      // Check for other active subscriptions for the same XalgoID and Account
+      const activeSubscriptions = await Subcription.find({
+        XalgoID: element.XalgoID,
+        Account: element.Account,
+        _id: { $ne: element._id }, // Exclude the current subscription
+      });
+
+      // Check if there are any non-expired subscriptions
+      const hasActiveSubscription = activeSubscriptions.some((sub) => {
+        const subCreatedAt = new Date(sub.CreatedAt);
+        const subDuration = parseInt(sub.Duration);
+        const subExpiryDate = new Date(subCreatedAt);
+        subExpiryDate.setDate(subExpiryDate.getDate() + subDuration);
+        return today <= subExpiryDate;
+      });
+
+      // Skip deletion if there is an active subscription for the same broker
+      if (hasActiveSubscription) {
+        console.log(
+          `Skipping deletion for XalgoID: ${element.XalgoID}, Account: ${element.Account} due to active subscription.`
+        );
+        continue;
+      }
+
       const userData = await User.findOne({ XalgoID: element.XalgoID });
 
       if (userData && Array.isArray(userData.ListOfBrokers)) {
