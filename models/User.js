@@ -129,7 +129,6 @@ const RemovedAPIsSchema = new Schema({
   AngelPass: { type: String },
   SecretKey: { type: String },
   AngelApiKey: { type: String }, // renamed to avoid duplicate with motilal
-
 });
 
 const userSchema = new Schema({

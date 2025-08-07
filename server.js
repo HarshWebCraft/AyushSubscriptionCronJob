@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const cron = require("node-cron");
 const updateAllCredentials = require("./Controller/authController.js");
 const ExpiredSubscriptions = require("./Cronjob/subcription");
+const sendSubscriptionMail = require("./Cronjob/sendSubscriptionMail.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,6 +84,16 @@ cron.schedule("5 0 * * *", async () => {
   console.log("⏰ Running daily subcription update...");
   try {
     await ExpiredSubscriptions();
+    console.log("✅ subcription mail send");
+  } catch (err) {
+    console.error("❌ Error to sending subricption mail:", err);
+  }
+});
+
+cron.schedule("* * * * *", async () => {
+  console.log("⏰ Running daily subcription update...");
+  try {
+    await sendSubscriptionMail();
     console.log("✅ subcription removed");
   } catch (err) {
     console.error("❌ Error updating subcription:", err);
