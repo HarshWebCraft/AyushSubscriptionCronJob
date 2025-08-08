@@ -1,10 +1,10 @@
 const axios = require("axios");
-const User = require("../../models/User");
 
 const logoutMT5 = async (req, res) => {
+  console.log(req.body)
+  
   const { login_id, email } = req.body;
   console.log("logout run");
-  // Validate inputs
   if (!login_id || !email) {
     return res.status(400).json({
       status: "error",
@@ -30,34 +30,6 @@ const logoutMT5 = async (req, res) => {
         status: "error",
         message: response.data.message || "Logout failed",
         vps_response: response.data,
-      });
-    }
-
-    // Find user by email
-    const user = await User.findOne({ Email: email });
-    if (!user) {
-      return res.status(404).json({
-        status: "error",
-        message: "User not found",
-      });
-    }
-
-    // Update user document
-    const updatedUser = await User.findOneAndUpdate(
-      { Email: email },
-      {
-        // Remove login_id from MT5BrokerData
-        $pull: {
-          MT5BrokerData: { loginId: login_id },
-        },
-      },
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(500).json({
-        status: "error",
-        message: "Failed to update user data",
       });
     }
 

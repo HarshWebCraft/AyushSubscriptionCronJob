@@ -34,7 +34,7 @@ const removeDelta = async (req, res) => {
       XalgoID: XId,
       RemovedAPIs: {
         $elemMatch: {
-          clientId: deltaData.deltaBrokerId,
+          clientId: deltaData.client_id,
           apiName: APIName,
         },
       },
@@ -48,7 +48,7 @@ const removeDelta = async (req, res) => {
             RemovedAPIs: {
               apiName: APIName,
               clientId: deltaData.client_id,
-              broker: "Delta",
+              broker: delBroker,
               SecretKey: deltaData.apiSecret,
               apikey: deltaData.apiKey,
               removedAt: new Date(),
