@@ -61,15 +61,6 @@ async function connectToMongoDB() {
 }
 connectToMongoDB();
 
-cron.schedule("* * * * *", async () => {
-  console.log("⏰ Running daily auth update...");
-  try {
-    await updateAllCredentials();
-    console.log("✅ auth update completed.");
-  } catch (err) {
-    console.error("❌ Error updating auth:", err);
-  }
-});
 cron.schedule("0 8 * * *", async () => {
   console.log("⏰ Running daily auth update...");
   try {
