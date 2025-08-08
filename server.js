@@ -81,15 +81,15 @@ cron.schedule("0 8 * * *", async () => {
 });
 
 // cron.schedule("5 0 * * *", async () => {
-cron.schedule("* * * * *", async () => {
-  console.log("⏰ Running daily subcription update...");
-  try {
-    await ExpiredSubscriptions();
-    console.log("✅ subcription mail send");
-  } catch (err) {
-    console.error("❌ Error to sending subricption mail:", err);
-  }
-});
+// // cron.schedule("* * * * *", async () => {
+//   console.log("⏰ Running daily subcription update...");
+//   try {
+//     await ExpiredSubscriptions();
+//     console.log("✅ subcription mail send");
+//   } catch (err) {
+//     console.error("❌ Error to sending subricption mail:", err);
+//   }
+// });
 
 cron.schedule("5 0 * * *", async () => {
   console.log("⏰ Running daily send main subcription update...");
@@ -133,6 +133,5 @@ app.use((error, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  ExpiredSubscriptions();
   console.log(`Server running on http://localhost:${PORT}`);
 });

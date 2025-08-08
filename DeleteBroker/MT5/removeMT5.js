@@ -4,7 +4,7 @@ const removeBroker = require("../removeBroker.js");
 
 const removeMT5 = async (req, res) => {
   const session = await mongoose.startSession();
-
+  console.log("MT 5 calliedddddddd");
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       session.startTransaction();

@@ -3,7 +3,7 @@ const User = require("../../models/User");
 
 const logoutMT5 = async (req, res) => {
   const { login_id, email } = req.body;
-
+  console.log("logout run");
   // Validate inputs
   if (!login_id || !email) {
     return res.status(400).json({
