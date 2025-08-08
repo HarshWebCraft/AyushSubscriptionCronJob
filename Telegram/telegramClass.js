@@ -59,7 +59,7 @@ class TelegramService {
     try {
       console.log("formatTradingViewAlert input:", { alertData, contentType });
 
-      // Get current server time with timezone name
+      // Get current server time in IST with short timezone name
       const serverTime =
         new Date().toLocaleString("en-US", {
           timeZone: "Asia/Kolkata",
@@ -69,14 +69,17 @@ class TelegramService {
           second: "2-digit",
         }) + " IST";
 
+      // Wrap time in Markdown italic formatting
+      const italicTime = `*${serverTime}*`;
+
       if (alertData === null || alertData === undefined) {
-        return `No data received\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+        return `No data received\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
       }
 
       if (contentType.includes("text/plain") || typeof alertData === "string") {
         return `${
           alertData.trim() || "Empty message"
-        }\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+        }\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
       }
 
       if (
@@ -85,23 +88,23 @@ class TelegramService {
       ) {
         try {
           const formatted = JSON.stringify(alertData, null, 2);
-          return `\`\`\`json\n${formatted}\n\`\`\`\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+          return `\`\`\`json\n${formatted}\n\`\`\`\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
         } catch (error) {
           console.error("Error formatting JSON:", error.message);
           return `Malformed JSON data: ${JSON.stringify(
             alertData
-          )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+          )}\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
         }
       }
 
       return `Unsupported data format: ${String(
         alertData
-      )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+      )}\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
     } catch (error) {
       console.error("Error processing alert:", error.message);
       return `Error processing data: ${String(
         alertData
-      )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
+      )}\n\nSignal Time: ${italicTime}\nPowered by Xalgos.in`;
     }
   }
 }
