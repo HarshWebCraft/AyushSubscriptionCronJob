@@ -60,13 +60,14 @@ class TelegramService {
       console.log("formatTradingViewAlert input:", { alertData, contentType });
 
       // Get current server time with timezone name
-      const serverTime = new Date().toLocaleString("en-US", {
-        timeZoneName: "long",
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
+      const serverTime =
+        new Date().toLocaleString("en-US", {
+          timeZone: "Asia/Kolkata",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }) + " IST";
 
       if (alertData === null || alertData === undefined) {
         return `No data received\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
