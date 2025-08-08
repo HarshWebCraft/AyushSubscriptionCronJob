@@ -59,12 +59,26 @@ class TelegramService {
     try {
       console.log("formatTradingViewAlert input:", { alertData, contentType });
 
+      // Get current server time with timezone name
+      const serverTime = new Date().toLocaleString("en-US", {
+        timeZoneName: "long",
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+
       if (alertData === null || alertData === undefined) {
-        return "No data received\n\nPowered by Xalgos.in";
+        return `No data received\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
       }
 
       if (contentType.includes("text/plain") || typeof alertData === "string") {
-        return `${alertData.trim() || "Empty message"}\n\nPowered by Xalgos.in`;
+        return `${
+          alertData.trim() || "Empty message"
+        }\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
       }
 
       if (
@@ -73,17 +87,23 @@ class TelegramService {
       ) {
         try {
           const formatted = JSON.stringify(alertData, null, 2);
-          return `\`\`\`json\n${formatted}\n\`\`\`\n\nPowered by Xalgos.in`;
+          return `\`\`\`json\n${formatted}\n\`\`\`\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
         } catch (error) {
           console.error("Error formatting JSON:", error.message);
-          return `Malformed JSON data: ${JSON.stringify(alertData)}`;
+          return `Malformed JSON data: ${JSON.stringify(
+            alertData
+          )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
         }
       }
 
-      return `Unsupported data format: ${String(alertData)}`;
+      return `Unsupported data format: ${String(
+        alertData
+      )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
     } catch (error) {
       console.error("Error processing alert:", error.message);
-      return `Error processing data: ${String(alertData)}`;
+      return `Error processing data: ${String(
+        alertData
+      )}\n\nSignal Time: ${serverTime}\nPowered by Xalgos.in`;
     }
   }
 }
