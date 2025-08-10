@@ -10,25 +10,25 @@ const mongoose = require("mongoose");
 // Utility to introduce delay for rate-limiting
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Retry utility for handling transient transaction errors
 const withRetry = async (operation, maxRetries = 3, retryDelay = 1000) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
-      if (
-        error.code === 112 &&
-        error.errorLabels?.includes("TransientTransactionError")
-      ) {
+      const isWriteConflict = error.code === 112; // WriteConflict code
+
+      if (isWriteConflict) {
         if (attempt === maxRetries) {
           throw new Error(`Max retries reached: ${error.message}`);
         }
-        console.log(
-          `WriteConflict detected, retrying (${attempt}/${maxRetries})...`
+        console.warn(
+          `WriteConflict detected, retrying in ${
+            retryDelay * attempt
+          }ms (attempt ${attempt}/${maxRetries})...`
         );
-        await delay(retryDelay * attempt); // Exponential backoff
+        await delay(retryDelay * attempt); // exponential backoff
       } else {
-        throw error;
+        throw error; // unrelated error, rethrow immediately
       }
     }
   }
@@ -145,7 +145,7 @@ const ExpiredSubscriptions = async () => {
       const session = await mongoose.startSession();
       try {
         session.startTransaction();
-        const users = await User.find({ XalgoID: "FAOZ135" }).session(session);
+        const users = await User.find({}).session(session);
         const today = new Date();
 
         for (const user of users) {
@@ -153,9 +153,14 @@ const ExpiredSubscriptions = async () => {
           if (!user.ListOfBrokers || !Array.isArray(user.ListOfBrokers))
             continue;
 
+          const currentDate = new Date();
+
           const subscriptions = await Subscription.find({
             XalgoID: user.XalgoID,
+            CreatedAt: { $lte: currentDate },
           }).session(session);
+
+          console.log("subscriptions", subscriptions);
 
           // Calculate broker counts
           const brokerCounts = {
