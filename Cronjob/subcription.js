@@ -16,7 +16,6 @@ const withRetry = async (operation, maxRetries = 3, retryDelay = 1000) => {
       return await operation();
     } catch (error) {
       const isWriteConflict = error.code === 112; // WriteConflict code
-
       if (isWriteConflict) {
         if (attempt === maxRetries) {
           throw new Error(`Max retries reached: ${error.message}`);
@@ -153,14 +152,10 @@ const ExpiredSubscriptions = async () => {
           if (!user.ListOfBrokers || !Array.isArray(user.ListOfBrokers))
             continue;
 
-          const currentDate = new Date();
-
           const subscriptions = await Subscription.find({
             XalgoID: user.XalgoID,
-            CreatedAt: { $lte: currentDate },
+            CreatedAt: { $lte: today },
           }).session(session);
-
-          console.log("subscriptions", subscriptions);
 
           // Calculate broker counts
           const brokerCounts = {
@@ -185,27 +180,70 @@ const ExpiredSubscriptions = async () => {
             MT5: 0,
           };
 
+          // Group subscriptions by Account type
+          const subscriptionsByAccount = {
+            IndianBroker: [],
+            Delta: [],
+            MT5: [],
+          };
+
           for (const sub of subscriptions) {
             const createdAt = new Date(sub.CreatedAt);
-            const duration = parseInt(sub.Duration);
+            const duration = parseInt(sub.Duration) + 1;
             const expiryDate = new Date(createdAt);
             expiryDate.setDate(expiryDate.getDate() + duration);
+            console.log(
+              `Subscription: ${sub.Account}, CreatedAt: ${createdAt}, Duration: ${duration}, Expiry: ${expiryDate}`
+            );
 
-            if (today <= expiryDate) {
-              if (sub.Account === "Indian Broker") {
-                subscriptionLimits.IndianBroker += sub.NoOfAPI;
-              } else if (sub.Account === "Delta") {
-                subscriptionLimits.Delta += sub.NoOfAPI;
-              } else if (sub.Account === "MT5") {
-                subscriptionLimits.MT5 += sub.NoOfAPI;
-              }
-            } else {
+            if (today > expiryDate) {
               await Subscription.deleteOne({ _id: sub._id }, { session });
               console.log(
                 `Deleted expired subscription for XalgoID: ${sub.XalgoID}, Account: ${sub.Account}`
               );
+            } else {
+              if (sub.Account === "Indian Broker") {
+                subscriptionsByAccount.IndianBroker.push(sub);
+              } else if (sub.Account === "Delta") {
+                subscriptionsByAccount.Delta.push(sub);
+              } else if (sub.Account === "MT5") {
+                subscriptionsByAccount.MT5.push(sub);
+              }
             }
           }
+
+          // Process subscriptions to select the latest active one for each broker type
+          const selectLatestSubscription = (subs) => {
+            if (subs.length === 0) return null;
+            return subs.reduce((latest, current) => {
+              const latestDate = new Date(latest.CreatedAt);
+              const currentDate = new Date(current.CreatedAt);
+              return currentDate > latestDate ? current : latest;
+            });
+          };
+
+          const latestIndianBrokerSub = selectLatestSubscription(
+            subscriptionsByAccount.IndianBroker
+          );
+          const latestDeltaSub = selectLatestSubscription(
+            subscriptionsByAccount.Delta
+          );
+          const latestMT5Sub = selectLatestSubscription(
+            subscriptionsByAccount.MT5
+          );
+
+          // Update subscription limits based on the latest active subscription
+          if (latestIndianBrokerSub) {
+            subscriptionLimits.IndianBroker = latestIndianBrokerSub.NoOfAPI;
+          }
+          if (latestDeltaSub) {
+            subscriptionLimits.Delta = latestDeltaSub.NoOfAPI;
+          }
+          if (latestMT5Sub) {
+            subscriptionLimits.MT5 = latestMT5Sub.NoOfAPI;
+          }
+
+          console.log("Subscription limits:", subscriptionLimits);
 
           // Remove excess brokers and collect clientIds to remove
           const removeExcessBrokers = async (

@@ -1,4 +1,4 @@
-  const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const SubscriptionSchema = new mongoose.Schema({
   Account: { type: String, required: true },

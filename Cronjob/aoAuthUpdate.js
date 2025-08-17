@@ -1,7 +1,6 @@
 const axios = require("axios");
 const aoCredentials = require("../models/aoCredentials.js");
 const mongoose = require("mongoose");
-const { generateTOTP } = require("../utils/totpUtil.js"); // Your TOTP generator
 const speakeasy = require("speakeasy");
 
 const updateAllAngelCredentials = async () => {

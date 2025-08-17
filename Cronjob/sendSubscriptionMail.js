@@ -25,7 +25,7 @@ function generateEmailHTML(username, brokerName, daysLeft, expiryDate) {
           <!-- Header -->
           <tr>
             <td style="padding: 20px 30px; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; color: #ffffff;">Subscription Expiry Alert</h1>
+              <h1 style="margin: 0; font-size: 24px; color: var(--text-color);">Subscription Expiry Alert</h1>
             </td>
           </tr>
           
@@ -68,7 +68,7 @@ function generateFinalDayEmailHTML(username, brokerName, expiryDate) {
           <!-- Header -->
           <tr>
             <td style="padding: 20px 30px; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; color: #ffffff;">Final Subscription Expiry Alert</h1>
+              <h1 style="margin: 0; font-size: 24px; color: var(--text-color);">Final Subscription Expiry Alert</h1>
             </td>
           </tr>
           
@@ -112,7 +112,7 @@ const sendSubscriptionMail = async () => {
   try {
     const today = moment().tz("Asia/Kolkata").startOf("day");
 
-    const subs = await Subscription.find();
+    const subs = await Subscription.find({});
     for (const s of subs) {
       const expiryDate = moment(s.CreatedAt)
         .tz("Asia/Kolkata")

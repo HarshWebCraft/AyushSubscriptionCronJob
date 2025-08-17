@@ -108,7 +108,7 @@ const BrokerSchema = new Schema({
   broker: { type: String, required: true },
   // terminal_id: { type: String, required: true },
   tradingTimes: [TradingTimeSchema],
-  isActive: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: true },
 });
 
 const RemovedAPIsSchema = new Schema({

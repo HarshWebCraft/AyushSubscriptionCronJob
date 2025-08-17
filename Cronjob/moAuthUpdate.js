@@ -42,7 +42,7 @@ function getMacAddress() {
 
 const updateMotilalTokens = async () => {
   const users = await User.find({ "MotilalBrokerData.0": { $exists: true } });
-
+  console.log(users[0].MotilalBrokerData);
   for (const user of users) {
     const updatedBrokers = [];
 
@@ -98,6 +98,8 @@ const updateMotilalTokens = async () => {
             },
             { upsert: true, new: true }
           );
+
+          console.log();
         } else {
           console.error(`Failed for ${broker.clientId}: ${data.message}`);
         }
