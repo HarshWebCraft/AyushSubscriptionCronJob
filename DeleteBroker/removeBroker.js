@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const StrategyWebhook = require("../models/StrategyWebhook");
-const User = require("../models/User");
+const User = require("../models/users");
 const API = require("../models/Api");
 
 const removeBroker = async (clientId, XId, email, delBroker, session) => {

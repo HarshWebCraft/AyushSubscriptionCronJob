@@ -3,7 +3,7 @@ const axios = require("axios");
 const os = require("os");
 const crypto = require("crypto");
 const speakeasy = require("speakeasy");
-const User = require("../models/User");
+const User = require("../models/users");
 const MoCredentials = require("../models/moCredentials"); // Make sure the path is correct
 
 function generateHashedPassword(password, apiKey) {

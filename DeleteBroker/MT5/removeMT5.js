@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const User = require("../../models/User.js");
+const User = require("../../models/users.js");
 const removeBroker = require("../removeBroker.js");
 
 const removeMT5 = async (req, res) => {

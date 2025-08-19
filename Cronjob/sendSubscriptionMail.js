@@ -1,5 +1,5 @@
 const Subscription = require("../models/Subscription");
-const User = require("../models/User");
+const User = require("../models/users");
 const moment = require("moment-timezone");
 const nodemailer = require("nodemailer");
 
@@ -113,7 +113,7 @@ const sendSubscriptionMail = async () => {
     const today = moment().tz("Asia/Kolkata").startOf("day");
 
     const subs = await Subscription.find({ Duration: { $ne: "3" } });
-    
+
     for (const s of subs) {
       const expiryDate = moment(s.CreatedAt)
         .tz("Asia/Kolkata")

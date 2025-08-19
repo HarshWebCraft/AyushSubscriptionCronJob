@@ -4,7 +4,7 @@ const removeDelta = require("../DeleteBroker/removeDelta.js");
 const removeMotilal = require("../DeleteBroker/removeMotilal.js");
 const removeAngelOne = require("../DeleteBroker/removeAngelOne.js");
 const Subscription = require("../models/Subscription.js");
-const User = require("../models/User.js");
+const User = require("../models/users.js");
 const mongoose = require("mongoose");
 
 // Utility to introduce delay for rate-limiting
