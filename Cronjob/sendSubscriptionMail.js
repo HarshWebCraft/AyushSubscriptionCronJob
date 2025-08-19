@@ -112,7 +112,8 @@ const sendSubscriptionMail = async () => {
   try {
     const today = moment().tz("Asia/Kolkata").startOf("day");
 
-    const subs = await Subscription.find({});
+    const subs = await Subscription.find({ Duration: { $ne: "3" } });
+    
     for (const s of subs) {
       const expiryDate = moment(s.CreatedAt)
         .tz("Asia/Kolkata")
