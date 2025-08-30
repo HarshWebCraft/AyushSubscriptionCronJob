@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI =
   process.env.MONGODB_URI ||
-  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algos?retryWrites=true&w=majority";
+  "mongodb+srv://harshdvadhavana26:harshdv007@try.j3wxapq.mongodb.net/X-Algo-Mirror-db?retryWrites=true&w=majority";
 
 app.use(express.text({ type: ["text/plain", "text/*"] }));
 app.use(express.json({ type: ["application/json", "application/*+json"] }));

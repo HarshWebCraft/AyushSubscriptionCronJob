@@ -112,7 +112,9 @@ const sendSubscriptionMail = async () => {
   try {
     const today = moment().tz("Asia/Kolkata").startOf("day");
 
-    const subs = await Subscription.find({ Duration: { $ne: "3" } });
+    const subs = await Subscription.find({
+      Duration: { $ne: "3" },
+    });
 
     for (const s of subs) {
       const expiryDate = moment(s.CreatedAt)
@@ -120,6 +122,8 @@ const sendSubscriptionMail = async () => {
         .add(s.Duration, "days")
         .startOf("day");
       const daysLeft = expiryDate.diff(today, "days");
+
+      console.log("daysLeft", daysLeft);
 
       if ([3, 2, 1].includes(daysLeft)) {
         const user = await User.findOne({ XalgoID: s.XalgoID });

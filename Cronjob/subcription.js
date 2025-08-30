@@ -144,7 +144,7 @@ const ExpiredSubscriptions = async () => {
       const session = await mongoose.startSession();
       try {
         session.startTransaction();
-        const users = await User.find({}).session(session);
+        const users = await User.find({ XalgoID: "AYUS014" }).session(session);
         const today = new Date();
 
         for (const user of users) {
@@ -197,11 +197,47 @@ const ExpiredSubscriptions = async () => {
             );
 
             if (today > expiryDate) {
+              // Delete expired subscription
               await Subscription.deleteOne({ _id: sub._id }, { session });
               console.log(
                 `Deleted expired subscription for XalgoID: ${sub.XalgoID}, Account: ${sub.Account}`
               );
+
+              // Fetch other active subscriptions for the same broker type
+              const otherActiveSubscriptions = await Subscription.find({
+                XalgoID: sub.XalgoID,
+                Account: sub.Account, // Same broker type
+                _id: { $ne: sub._id }, // Exclude the deleted subscription
+              }).session(session);
+
+              // Filter for active (non-expired) subscriptions
+              const validSubscriptions = otherActiveSubscriptions.filter(
+                (otherSub) => {
+                  const otherCreatedAt = new Date(otherSub.CreatedAt);
+                  const otherDuration = parseInt(otherSub.Duration) + 1;
+                  const otherExpiryDate = new Date(otherCreatedAt);
+                  otherExpiryDate.setDate(
+                    otherExpiryDate.getDate() + otherDuration
+                  );
+                  return today <= otherExpiryDate;
+                }
+              );
+
+              // Add valid subscriptions to the appropriate broker type
+              for (const validSub of validSubscriptions) {
+                if (validSub.Account === "Indian Broker") {
+                  subscriptionsByAccount.IndianBroker.push(validSub);
+                } else if (validSub.Account === "Delta") {
+                  subscriptionsByAccount.Delta.push(validSub);
+                } else if (validSub.Account === "MT5") {
+                  subscriptionsByAccount.MT5.push(validSub);
+                }
+                console.log(
+                  `Added active subscription for XalgoID: ${validSub.XalgoID}, Account: ${validSub.Account}, CreatedAt: ${validSub.CreatedAt}`
+                );
+              }
             } else {
+              // Subscription is not expired, add to appropriate broker type
               if (sub.Account === "Indian Broker") {
                 subscriptionsByAccount.IndianBroker.push(sub);
               } else if (sub.Account === "Delta") {
@@ -211,7 +247,6 @@ const ExpiredSubscriptions = async () => {
               }
             }
           }
-
           // Process subscriptions to select the latest active one for each broker type
           const selectLatestSubscription = (subs) => {
             if (subs.length === 0) return null;
