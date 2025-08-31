@@ -149,36 +149,17 @@ const ExpiredSubscriptions = async () => {
 
         for (const user of users) {
           console.log("Processing user:", user.XalgoID);
-          if (!user.ListOfBrokers || !Array.isArray(user.ListOfBrokers))
+          if (!user.ListOfBrokers || !Array.isArray(user.ListOfBrokers)) {
+            console.log(
+              `No valid ListOfBrokers for ${user.XalgoID}, skipping.`
+            );
             continue;
+          }
 
           const subscriptions = await Subscription.find({
             XalgoID: user.XalgoID,
             CreatedAt: { $lte: today },
           }).session(session);
-
-          // Calculate broker counts
-          const brokerCounts = {
-            IndianBroker: user.ListOfBrokers.filter(
-              (b) => b.broker === "AngelOne" || b.broker === "Motilal"
-            ).length,
-            Delta: user.ListOfBrokers.filter(
-              (b) =>
-                b.broker === "Delta India" ||
-                b.broker === "Delta Global" ||
-                b.broker === "Delta Demo"
-            ).length,
-            MT5: user.ListOfBrokers.filter((b) => b.broker === "MT 5").length,
-          };
-
-          console.log("Broker counts:", brokerCounts);
-
-          // Calculate subscription limits
-          const subscriptionLimits = {
-            IndianBroker: 0,
-            Delta: 0,
-            MT5: 0,
-          };
 
           // Group subscriptions by Account type
           const subscriptionsByAccount = {
@@ -187,59 +168,18 @@ const ExpiredSubscriptions = async () => {
             MT5: [],
           };
 
+          // Categorize subscriptions
           for (const sub of subscriptions) {
-            const createdAt = new Date(sub.CreatedAt);
-            const duration = parseInt(sub.Duration); // no +1 here initially
-            const expiryDate = new Date(createdAt);
-            expiryDate.setDate(expiryDate.getDate() + duration);
-
-            console.log(
-              `Subscription: ${sub.Account}, CreatedAt: ${createdAt}, Duration: ${duration}, Expiry: ${expiryDate}`
-            );
-
-            if (today > expiryDate) {
-              // Check if user has another subscription for same broker
-              const otherActiveSubscriptions = await Subscription.find({
-                XalgoID: sub.XalgoID,
-                Account: sub.Account,
-                _id: { $ne: sub._id },
-              }).session(session);
-
-              if (otherActiveSubscriptions.length === 0) {
-                // Give 1-day grace if no other subscription exists
-                expiryDate.setDate(expiryDate.getDate() + 1);
-                console.log(`Grace day applied for Account: ${sub.Account}`);
-              }
-
-              if (today > expiryDate) {
-                // Still expired after grace → delete
-                await Subscription.deleteOne({ _id: sub._id }, { session });
-                console.log(
-                  `Deleted expired subscription for XalgoID: ${sub.XalgoID}, Account: ${sub.Account}`
-                );
-              } else {
-                // Not expired after grace → add back
-                if (sub.Account === "Indian Broker") {
-                  subscriptionsByAccount.IndianBroker.push(sub);
-                } else if (sub.Account === "Delta") {
-                  subscriptionsByAccount.Delta.push(sub);
-                } else if (sub.Account === "MT5") {
-                  subscriptionsByAccount.MT5.push(sub);
-                }
-              }
-            } else {
-              // Not expired → add directly
-              if (sub.Account === "Indian Broker") {
-                subscriptionsByAccount.IndianBroker.push(sub);
-              } else if (sub.Account === "Delta") {
-                subscriptionsByAccount.Delta.push(sub);
-              } else if (sub.Account === "MT5") {
-                subscriptionsByAccount.MT5.push(sub);
-              }
+            if (sub.Account === "Indian Broker") {
+              subscriptionsByAccount.IndianBroker.push(sub);
+            } else if (sub.Account === "Delta") {
+              subscriptionsByAccount.Delta.push(sub);
+            } else if (sub.Account === "MT5") {
+              subscriptionsByAccount.MT5.push(sub);
             }
           }
 
-          // Process subscriptions to select the latest active one for each broker type
+          // Helper function to select the latest subscription
           const selectLatestSubscription = (subs) => {
             if (subs.length === 0) return null;
             return subs.reduce((latest, current) => {
@@ -249,143 +189,214 @@ const ExpiredSubscriptions = async () => {
             });
           };
 
-          const latestIndianBrokerSub = selectLatestSubscription(
-            subscriptionsByAccount.IndianBroker
-          );
-          const latestDeltaSub = selectLatestSubscription(
-            subscriptionsByAccount.Delta
-          );
-          const latestMT5Sub = selectLatestSubscription(
-            subscriptionsByAccount.MT5
-          );
-
-          // Update subscription limits based on the latest active subscription
-          if (latestIndianBrokerSub) {
-            subscriptionLimits.IndianBroker = latestIndianBrokerSub.NoOfAPI;
-          }
-          if (latestDeltaSub) {
-            subscriptionLimits.Delta = latestDeltaSub.NoOfAPI;
-          }
-          if (latestMT5Sub) {
-            subscriptionLimits.MT5 = latestMT5Sub.NoOfAPI;
-          }
-
-          console.log("Subscription limits:", subscriptionLimits);
-
-          // Remove excess brokers and collect clientIds to remove
-          const removeExcessBrokers = async (
+          // Process each broker type
+          const processBrokerType = async (
             brokerType,
-            maxAllowed,
-            filterBrokers
+            filterBrokers,
+            subscriptions
           ) => {
             const brokers = user.ListOfBrokers.filter(filterBrokers);
-            const excessCount = maxAllowed - brokers.length;
+            console.log(`Processing ${brokerType}, brokers: ${brokers.length}`);
 
-            if (excessCount < 0) {
-              const brokersToRemove = brokers.slice(maxAllowed);
+            // Find active and expired subscriptions
+            const activeSubs = [];
+            const expiredSubs = [];
+            for (const sub of subscriptions) {
+              const createdAt = new Date(sub.CreatedAt);
+              const duration = parseInt(sub.Duration);
+              const expiryDate = new Date(createdAt);
+              expiryDate.setDate(expiryDate.getDate() + duration);
+
+              if (today <= expiryDate) {
+                activeSubs.push(sub);
+              } else {
+                expiredSubs.push({ ...sub, expiryDate });
+              }
+            }
+
+            // Condition 2: Active subscription exists, do nothing
+            if (activeSubs.length > 0) {
               console.log(
-                `Removing ${brokersToRemove.length} excess ${brokerType} brokers for ${user.XalgoID}`
+                `Active subscription found for ${brokerType}, skipping.`
               );
-              const clientIdsToRemove = [];
+              return;
+            }
 
-              for (const broker of brokersToRemove) {
+            // Get the latest subscription (active or expired)
+            const latestSub = selectLatestSubscription(subscriptions);
+
+            // Condition 1: No subscriptions (active or expired), remove all brokers
+            if (!latestSub) {
+              console.log(
+                `No subscriptions for ${brokerType}, removing all brokers.`
+              );
+              await removeBrokers(brokerType, brokers, user, session);
+              return;
+            }
+
+            // Process expired subscriptions
+            for (const sub of expiredSubs) {
+              let finalExpiryDate = sub.expiryDate;
+
+              // Condition 3: No renewed subscription, apply 1-day grace
+              if (subscriptions.length === 1) {
+                finalExpiryDate.setDate(finalExpiryDate.getDate() + 1);
                 console.log(
-                  `Removing broker: ${broker.broker} with clientId: ${broker.clientId}`
+                  `Grace day applied for ${brokerType}, subscription: ${sub._id}`
                 );
-                let result;
-                switch (broker.broker) {
-                  case "AngelOne":
-                    result = await handleAngelOneDeletion(
-                      broker.clientId,
-                      broker.broker,
-                      broker.apiName,
-                      user.XalgoID,
-                      user.Email
-                    );
-                    break;
-                  case "Motilal":
-                    result = await handleMotilalDeletion(
-                      broker.clientId,
-                      broker.broker,
-                      broker.apiName,
-                      user.XalgoID,
-                      user.Email
-                    );
-                    break;
-                  case "Delta India":
-                  case "Delta Global":
-                  case "Delta Demo":
-                    result = await handleDeltaDeletion(
-                      broker.clientId,
-                      broker.broker,
-                      broker.apiName,
-                      user.XalgoID,
-                      user.Email
-                    );
-                    break;
-                  case "MT 5":
-                    result = await handleMT5Deletion(
-                      broker.clientId,
-                      broker.broker,
-                      broker.apiName,
-                      user.XalgoID,
-                      user.Email
-                    );
-                    break;
-                  default:
-                    console.log("Unknown broker:", broker.broker);
-                    continue;
-                }
-
-                if (result.success) {
-                  clientIdsToRemove.push(result.clientId);
-                  console.log(`Broker ${result.clientId} queued for removal`);
-                } else {
-                  console.error(result.message);
-                }
-
-                // Rate-limit to avoid overwhelming external APIs
-                await delay(1000);
               }
 
-              // Update ListOfBrokers once after all deletions
-              if (clientIdsToRemove.length > 0) {
-                user.ListOfBrokers = user.ListOfBrokers.filter(
-                  (b) => !clientIdsToRemove.includes(b.clientId)
-                );
-                await user.save({ session });
+              // If still expired after grace (or no grace due to renewed subscription)
+              if (today > finalExpiryDate) {
+                await Subscription.deleteOne({ _id: sub._id }, { session });
                 console.log(
-                  `Removed ${clientIdsToRemove.length} brokers from ListOfBrokers for ${user.XalgoID}`
+                  `Deleted expired subscription for ${brokerType}, ID: ${sub._id}`
                 );
               }
             }
+
+            // Condition 4: Consider the latest subscription (active or expired with grace)
+            const latestValidSub = selectLatestSubscription(
+              subscriptions.filter((sub) => {
+                const createdAt = new Date(sub.CreatedAt);
+                const duration = parseInt(sub.Duration);
+                const expiryDate = new Date(createdAt);
+                expiryDate.setDate(expiryDate.getDate() + duration);
+                if (subscriptions.length === 1 && today > expiryDate) {
+                  expiryDate.setDate(expiryDate.getDate() + 1); // Apply grace for single sub
+                }
+                return today <= expiryDate;
+              })
+            );
+
+            // If no valid subscription after grace, remove all brokers
+            if (!latestValidSub) {
+              console.log(
+                `No valid subscription for ${brokerType}, removing all brokers.`
+              );
+              await removeBrokers(brokerType, brokers, user, session);
+              return;
+            }
+
+            // Enforce subscription limit based on latest valid subscription
+            const maxAllowed = latestValidSub.NoOfAPI || 0;
+            const excessCount = brokers.length - maxAllowed;
+
+            if (excessCount > 0) {
+              console.log(
+                `Removing ${excessCount} excess ${brokerType} brokers.`
+              );
+              const brokersToRemove = brokers.slice(maxAllowed);
+              await removeBrokers(brokerType, brokersToRemove, user, session);
+            }
           };
 
-          // Process broker types
-          await removeExcessBrokers(
+          // Helper function to remove brokers
+          const removeBrokers = async (
+            brokerType,
+            brokersToRemove,
+            user,
+            session
+          ) => {
+            const clientIdsToRemove = [];
+
+            for (const broker of brokersToRemove) {
+              console.log(
+                `Removing broker: ${broker.broker}, clientId: ${broker.clientId}`
+              );
+              let result;
+              switch (broker.broker) {
+                case "AngelOne":
+                  result = await handleAngelOneDeletion(
+                    broker.clientId,
+                    broker.broker,
+                    broker.apiName,
+                    user.XalgoID,
+                    user.Email
+                  );
+                  break;
+                case "Motilal":
+                  result = await handleMotilalDeletion(
+                    broker.clientId,
+                    broker.broker,
+                    broker.apiName,
+                    user.XalgoID,
+                    user.Email
+                  );
+                  break;
+                case "Delta India":
+                case "Delta Global":
+                case "Delta Demo":
+                  result = await handleDeltaDeletion(
+                    broker.clientId,
+                    broker.broker,
+                    broker.apiName,
+                    user.XalgoID,
+                    user.Email
+                  );
+                  break;
+                case "MT 5":
+                  result = await handleMT5Deletion(
+                    broker.clientId,
+                    broker.broker,
+                    broker.apiName,
+                    user.XalgoID,
+                    user.Email
+                  );
+                  break;
+                default:
+                  console.log(`Unknown broker: ${broker.broker}`);
+                  continue;
+              }
+
+              if (result.success) {
+                clientIdsToRemove.push(result.clientId);
+                console.log(`Broker ${result.clientId} queued for removal`);
+              } else {
+                console.error(
+                  `Failed to remove broker ${broker.clientId}: ${result.message}`
+                );
+              }
+
+              await delay(1000); // Rate limiting
+            }
+
+            if (clientIdsToRemove.length > 0) {
+              user.ListOfBrokers = user.ListOfBrokers.filter(
+                (b) => !clientIdsToRemove.includes(b.clientId)
+              );
+              await user.save({ session });
+              console.log(
+                `Removed ${clientIdsToRemove.length} brokers for ${brokerType}`
+              );
+            }
+          };
+
+          // Process each broker type
+          await processBrokerType(
             "IndianBroker",
-            subscriptionLimits.IndianBroker,
-            (b) => b.broker === "AngelOne" || b.broker === "Motilal"
+            (b) => b.broker === "AngelOne" || b.broker === "Motilal",
+            subscriptionsByAccount.IndianBroker
           );
-          await removeExcessBrokers(
+          await processBrokerType(
             "Delta",
-            subscriptionLimits.Delta,
             (b) =>
               b.broker === "Delta India" ||
               b.broker === "Delta Global" ||
-              b.broker === "Delta Demo"
+              b.broker === "Delta Demo",
+            subscriptionsByAccount.Delta
           );
-          await removeExcessBrokers(
+          await processBrokerType(
             "MT5",
-            subscriptionLimits.MT5,
-            (b) => b.broker === "MT 5"
+            (b) => b.broker === "MT 5",
+            subscriptionsByAccount.MT5
           );
         }
 
         await session.commitTransaction();
       } catch (error) {
         await session.abortTransaction();
-        throw error; // Rethrow to trigger retry
+        throw error;
       } finally {
         session.endSession();
       }
