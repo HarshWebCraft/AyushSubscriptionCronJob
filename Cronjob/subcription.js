@@ -238,8 +238,11 @@ const ExpiredSubscriptions = async () => {
             for (const sub of expiredSubs) {
               let finalExpiryDate = sub.expiryDate;
 
-              // Condition 3: No renewed subscription, apply 1-day grace
-              if (subscriptions.length === 1) {
+              // Condition 3: Apply 1-day grace only if no other subscriptions exist
+              const otherSubscriptions = subscriptions.filter(
+                (s) => s._id.toString() !== sub._id.toString()
+              );
+              if (otherSubscriptions.length === 0) {
                 finalExpiryDate.setDate(finalExpiryDate.getDate() + 1);
                 console.log(
                   `Grace day applied for ${brokerType}, subscription: ${sub._id}`
