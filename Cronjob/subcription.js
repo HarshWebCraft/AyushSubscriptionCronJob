@@ -189,55 +189,46 @@ const ExpiredSubscriptions = async () => {
 
           for (const sub of subscriptions) {
             const createdAt = new Date(sub.CreatedAt);
-            const duration = parseInt(sub.Duration) + 1;
+            const duration = parseInt(sub.Duration); // no +1 here initially
             const expiryDate = new Date(createdAt);
             expiryDate.setDate(expiryDate.getDate() + duration);
+
             console.log(
               `Subscription: ${sub.Account}, CreatedAt: ${createdAt}, Duration: ${duration}, Expiry: ${expiryDate}`
             );
 
             if (today > expiryDate) {
-              // Delete expired subscription
-              await Subscription.deleteOne({ _id: sub._id }, { session });
-              console.log(
-                `Deleted expired subscription for XalgoID: ${sub.XalgoID}, Account: ${sub.Account}`
-              );
-
-              // Fetch other active subscriptions for the same broker type
+              // Check if user has another subscription for same broker
               const otherActiveSubscriptions = await Subscription.find({
                 XalgoID: sub.XalgoID,
-                Account: sub.Account, // Same broker type
-                _id: { $ne: sub._id }, // Exclude the deleted subscription
+                Account: sub.Account,
+                _id: { $ne: sub._id },
               }).session(session);
 
-              // Filter for active (non-expired) subscriptions
-              const validSubscriptions = otherActiveSubscriptions.filter(
-                (otherSub) => {
-                  const otherCreatedAt = new Date(otherSub.CreatedAt);
-                  const otherDuration = parseInt(otherSub.Duration) + 1;
-                  const otherExpiryDate = new Date(otherCreatedAt);
-                  otherExpiryDate.setDate(
-                    otherExpiryDate.getDate() + otherDuration
-                  );
-                  return today <= otherExpiryDate;
-                }
-              );
+              if (otherActiveSubscriptions.length === 0) {
+                // Give 1-day grace if no other subscription exists
+                expiryDate.setDate(expiryDate.getDate() + 1);
+                console.log(`Grace day applied for Account: ${sub.Account}`);
+              }
 
-              // Add valid subscriptions to the appropriate broker type
-              for (const validSub of validSubscriptions) {
-                if (validSub.Account === "Indian Broker") {
-                  subscriptionsByAccount.IndianBroker.push(validSub);
-                } else if (validSub.Account === "Delta") {
-                  subscriptionsByAccount.Delta.push(validSub);
-                } else if (validSub.Account === "MT5") {
-                  subscriptionsByAccount.MT5.push(validSub);
-                }
+              if (today > expiryDate) {
+                // Still expired after grace → delete
+                await Subscription.deleteOne({ _id: sub._id }, { session });
                 console.log(
-                  `Added active subscription for XalgoID: ${validSub.XalgoID}, Account: ${validSub.Account}, CreatedAt: ${validSub.CreatedAt}`
+                  `Deleted expired subscription for XalgoID: ${sub.XalgoID}, Account: ${sub.Account}`
                 );
+              } else {
+                // Not expired after grace → add back
+                if (sub.Account === "Indian Broker") {
+                  subscriptionsByAccount.IndianBroker.push(sub);
+                } else if (sub.Account === "Delta") {
+                  subscriptionsByAccount.Delta.push(sub);
+                } else if (sub.Account === "MT5") {
+                  subscriptionsByAccount.MT5.push(sub);
+                }
               }
             } else {
-              // Subscription is not expired, add to appropriate broker type
+              // Not expired → add directly
               if (sub.Account === "Indian Broker") {
                 subscriptionsByAccount.IndianBroker.push(sub);
               } else if (sub.Account === "Delta") {
@@ -247,6 +238,7 @@ const ExpiredSubscriptions = async () => {
               }
             }
           }
+
           // Process subscriptions to select the latest active one for each broker type
           const selectLatestSubscription = (subs) => {
             if (subs.length === 0) return null;

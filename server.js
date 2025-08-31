@@ -92,6 +92,10 @@ cron.schedule("5 0 * * *", async () => {
   }
 });
 
+app.post("/delteSubscription", () => {
+  ExpiredSubscriptions();
+});
+
 const sessions = new Map();
 function sessionMiddleware(req, res, next) {
   const sessionId =
